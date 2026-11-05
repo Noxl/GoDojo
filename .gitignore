@@ -47,3 +47,6 @@ app.*.map.json
 # Local KataGo engine and networks
 /KataGo/
 /dist/
+
+# A clone of the repository inside the project
+/GoDojo/
