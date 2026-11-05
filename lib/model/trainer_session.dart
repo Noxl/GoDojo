@@ -491,6 +491,8 @@ class TrainerSession extends ChangeNotifier {
   /// (stored as a pass in the SGF: no stone on this board).
   void userPlay(Point? p) {
     if (!userToMove) return;
+    // A tap on a stone already on the board: nothing (not a mistake).
+    if (p != null && _board[p] != Stone.empty) return;
     hints = const [];
     final candidates = _userCandidates();
     final match = candidates

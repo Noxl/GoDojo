@@ -113,6 +113,9 @@ class _EditorState extends State<_Editor> {
       doc.hasStartPosition && doc.root.children.isEmpty && !doc.hasStartStones;
   Stone _startStone = Stone.black;
 
+  /// A phone: the page scrolls, with the board as wide as the screen.
+  bool get _isPhone => MediaQuery.sizeOf(context).width < 600;
+
   /// The move being moved to another place (the next click), if any.
   SgfNode? _replacing;
 
@@ -349,8 +352,11 @@ class _EditorState extends State<_Editor> {
       child: ListenableBuilder(
         listenable: Listenable.merge([doc, _analysis]),
         builder: (context, _) => LayoutBuilder(
-          builder: (context, c) =>
-              c.maxWidth >= 1000 ? _wide(context) : _narrow(context),
+          builder: (context, c) => c.maxWidth >= 1000
+              ? _wide(context)
+              : _isPhone
+              ? _phone(context)
+              : _narrow(context),
         ),
       ),
     );
@@ -405,6 +411,48 @@ class _EditorState extends State<_Editor> {
     );
   }
 
+  /// Phone: everything in one scrolling page; the board is as wide as the
+  /// screen, the notes and the tree are under it.
+  Widget _phone(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: LayoutBuilder(
+        builder: (context, c) => ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            _header(context),
+            SizedBox(
+              height: c.maxWidth,
+              child: Padding(padding: const EdgeInsets.all(4), child: _board()),
+            ),
+            _navigation(context),
+            _toolbar(context),
+            const TabBar(
+              tabs: [
+                Tab(text: 'Notes'),
+                Tab(text: 'Tree'),
+              ],
+            ),
+            SizedBox(
+              height: (c.maxHeight * 0.75).clamp(320.0, 900.0),
+              child: TabBarView(
+                children: [
+                  SingleChildScrollView(child: _nodePanel(context)),
+                  Column(
+                    children: [
+                      _treeHeader(context),
+                      Expanded(child: _tree()),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _narrow(BuildContext context) {
     return DefaultTabController(
       length: 2,
@@ -439,6 +487,64 @@ class _EditorState extends State<_Editor> {
     );
   }
 
+  List<Widget> _controls(BuildContext context) => [
+    if (doc.hasStartPosition)
+      Tooltip(
+        message: '${doc.kind.label}: you choose the color when you train',
+        child: Chip(
+          avatar: Icon(kindIcon(doc.kind), size: 18),
+          label: Text(doc.kind.label),
+        ),
+      )
+    else
+      ColorSelector(value: doc.color, onChanged: doc.setColor),
+    const SizedBox(width: 8),
+    Tooltip(
+      message: doc.hasMoves
+          ? 'The board size can only be changed while the board is empty'
+          : 'Board size',
+      child: DropdownButton<int>(
+        value: doc.size,
+        underline: const SizedBox(),
+        items: [
+          for (final s in {...kBoardSizes, doc.size})
+            DropdownMenuItem(value: s, child: Text('$s×$s')),
+        ],
+        onChanged: doc.hasMoves ? null : (v) => doc.setSize(v!),
+      ),
+    ),
+    _analysisButton(context),
+    const SizedBox(width: 4),
+    IconButton(
+      tooltip: 'Save (Ctrl+S)',
+      onPressed: () => saveDocument(context, doc),
+      icon: const Icon(Icons.save_outlined),
+    ),
+    FilledButton.tonalIcon(
+      onPressed: () => AppScope.read(context).train(doc),
+      icon: const Icon(Icons.school_outlined),
+      label: const Text('Train'),
+    ),
+  ];
+
+  /// Phone: the color, size and analysis of the file, in a sheet.
+  void _fileSheet() => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (c) => ListenableBuilder(
+      listenable: doc,
+      builder: (c, _) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: _controls(c),
+        ),
+      ),
+    ),
+  );
+
   Widget _header(BuildContext context) {
     final theme = Theme.of(context);
     final name = Expanded(
@@ -458,45 +564,7 @@ class _EditorState extends State<_Editor> {
           ),
         ),
     ];
-    final controls = <Widget>[
-      if (doc.hasStartPosition)
-        Tooltip(
-          message: '${doc.kind.label}: you choose the color when you train',
-          child: Chip(
-            avatar: Icon(kindIcon(doc.kind), size: 18),
-            label: Text(doc.kind.label),
-          ),
-        )
-      else
-        ColorSelector(value: doc.color, onChanged: doc.setColor),
-      const SizedBox(width: 8),
-      Tooltip(
-        message: doc.hasMoves
-            ? 'The board size can only be changed while the board is empty'
-            : 'Board size',
-        child: DropdownButton<int>(
-          value: doc.size,
-          underline: const SizedBox(),
-          items: [
-            for (final s in {...kBoardSizes, doc.size})
-              DropdownMenuItem(value: s, child: Text('$s×$s')),
-          ],
-          onChanged: doc.hasMoves ? null : (v) => doc.setSize(v!),
-        ),
-      ),
-      _analysisButton(context),
-      const SizedBox(width: 4),
-      IconButton(
-        tooltip: 'Save (Ctrl+S)',
-        onPressed: () => saveDocument(context, doc),
-        icon: const Icon(Icons.save_outlined),
-      ),
-      FilledButton.tonalIcon(
-        onPressed: () => AppScope.read(context).train(doc),
-        icon: const Icon(Icons.school_outlined),
-        label: const Text('Train'),
-      ),
-    ];
+    final controls = _controls(context);
     final menu = PopupMenuButton<String>(
       onSelected: (v) => switch (v) {
         'copy' => saveDocument(context, doc, asCopy: true),
@@ -506,15 +574,27 @@ class _EditorState extends State<_Editor> {
           if (d != null && context.mounted) openInEditor(context, d);
         }),
         'close' => _close(),
+        'file' => _fileSheet(),
         _ => null,
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'new', child: Text('New opening or joseki…')),
-        PopupMenuItem(value: 'open', child: Text('Open SGF file…')),
-        PopupMenuItem(value: 'copy', child: Text('Save as copy in library')),
-        PopupMenuItem(value: 'export', child: Text('Export SGF…')),
-        PopupMenuDivider(),
-        PopupMenuItem(value: 'close', child: Text('Close')),
+      itemBuilder: (_) => [
+        if (_isPhone)
+          const PopupMenuItem(
+            value: 'file',
+            child: Text('Color, board size, analysis…'),
+          ),
+        const PopupMenuItem(
+          value: 'new',
+          child: Text('New opening or joseki…'),
+        ),
+        const PopupMenuItem(value: 'open', child: Text('Open SGF file…')),
+        const PopupMenuItem(
+          value: 'copy',
+          child: Text('Save as copy in library'),
+        ),
+        const PopupMenuItem(value: 'export', child: Text('Export SGF…')),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: 'close', child: Text('Close')),
       ],
     );
     return Padding(
@@ -532,7 +612,27 @@ class _EditorState extends State<_Editor> {
               ],
             );
           }
-          // Phone: the name on its own line.
+          if (_isPhone) {
+            // One row; the rest of the controls are in the menu.
+            return Row(
+              children: [
+                name,
+                ...dirty,
+                IconButton(
+                  tooltip: 'Save',
+                  onPressed: () => saveDocument(context, doc),
+                  icon: const Icon(Icons.save_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Train',
+                  onPressed: () => AppScope.read(context).train(doc),
+                  icon: const Icon(Icons.school_outlined),
+                ),
+                menu,
+              ],
+            );
+          }
+          // Narrow window: the name on its own line.
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

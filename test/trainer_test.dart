@@ -36,6 +36,17 @@ void main() {
     expect(s.userToMove, isTrue);
   });
 
+  test('a tap on a stone already on the board is not a mistake', () {
+    final s = session();
+    final before = s.feedback;
+    s.userPlay(const Point(4, 4)); // the opponent's stone
+    expect(s.mistakes, 0);
+    expect(s.lineMistakes, 0);
+    expect(s.wrongPoint, isNull);
+    expect(s.feedback, same(before));
+    expect(s.userToMove, isTrue);
+  });
+
   test('wrong, bad and correct moves', () {
     final s = session();
     s.userPlay(const Point(0, 0));

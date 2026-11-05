@@ -58,12 +58,28 @@ enum _Group {
 
 class _LibraryPageState extends State<LibraryPage> {
   String _query = '';
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Stone? _color;
   DocumentKind? _kind;
   int? _size;
 
   /// Path of the entry shown in the preview.
   String? _selected;
+
+  /// Phone: the filters are shown (folded by default).
+  bool _showFilters = false;
+
+  /// No navigation rail: a phone, or a very narrow window.
+  bool _narrow(BuildContext context) => MediaQuery.sizeOf(context).width < 700;
+
+  bool get _filtering => _color != null || _kind != null || _size != null;
   final Set<_Group> _collapsed = {};
 
   @override
@@ -71,7 +87,7 @@ class _LibraryPageState extends State<LibraryPage> {
     final state = AppScope.of(context);
     final lib = state.library;
     return ListenableBuilder(
-      listenable: lib,
+      listenable: Listenable.merge([lib, state.cloud]),
       builder: (context, _) {
         final entries = lib.entries.where((e) {
           if (_color != null && e.color != _color) return false;
@@ -83,7 +99,7 @@ class _LibraryPageState extends State<LibraryPage> {
               e.relativePath.toLowerCase().contains(q);
         }).toList();
         // Phone: the header and filters scroll away with the list.
-        if (MediaQuery.sizeOf(context).width < 700 && entries.isNotEmpty) {
+        if (_narrow(context) && entries.isNotEmpty) {
           return _list(
             context,
             lib,
@@ -234,7 +250,153 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
+  /// Where the files are kept, under the title.
+  String _whereKept(Library lib) {
+    if (AppScope.read(context).cloud.signedIn) {
+      return 'Synced with your account.';
+    }
+    return storage.inBrowser
+        ? 'Kept in this browser. Sign in or back up to keep it safe.'
+        : lib.directory ?? '';
+  }
+
+  /// Phone: the title with the account and settings on the right, then the
+  /// two main actions; the rest is in a menu.
+  Widget _phoneHeader(BuildContext context, Library lib) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 4, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const AppLogo(size: 30),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Library', style: theme.textTheme.headlineSmall),
+              ),
+              const AccountButton(),
+              IconButton(
+                tooltip: 'Settings',
+                onPressed: () => showSettings(context),
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ],
+          ),
+          Text(_whereKept(lib), style: theme.textTheme.bodySmall),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: () => _newOpening(context),
+                icon: const Icon(Icons.add),
+                label: const Text('New'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => AppScope.read(context).openDrill(),
+                    icon: const Icon(Icons.all_inclusive),
+                    label: const Text(
+                      'Train all joseki',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'More',
+                onSelected: (v) => switch (v) {
+                  'import' => _import(context, lib),
+                  'backup' => _backup(context),
+                  'restore' => _restore(context),
+                  _ => lib.refresh(),
+                },
+                itemBuilder: (c) => const [
+                  PopupMenuItem(
+                    value: 'import',
+                    child: ListTile(
+                      leading: Icon(Icons.file_download_outlined),
+                      title: Text('Import SGF'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'backup',
+                    child: ListTile(
+                      leading: Icon(Icons.download),
+                      title: Text('Back up library and progress'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'restore',
+                    child: ListTile(
+                      leading: Icon(Icons.upload),
+                      title: Text('Restore a backup'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'refresh',
+                    child: ListTile(
+                      leading: Icon(Icons.refresh),
+                      title: Text('Refresh'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Phone: the search, and the filters behind a button.
+  Widget _phoneFilters(BuildContext context, Library lib) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _searchField()),
+              IconButton(
+                tooltip: _showFilters ? 'Hide the filters' : 'Filters',
+                isSelected: _showFilters || _filtering,
+                onPressed: () => setState(() => _showFilters = !_showFilters),
+                icon: Badge(
+                  isLabelVisible: _filtering && !_showFilters,
+                  smallSize: 8,
+                  child: const Icon(Icons.tune),
+                ),
+              ),
+            ],
+          ),
+          if (_showFilters) ...[
+            const SizedBox(height: 8),
+            _filterChips(context, lib),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _searchField() => TextField(
+    decoration: const InputDecoration(
+      prefixIcon: Icon(Icons.search),
+      hintText: 'Search',
+      isDense: true,
+      border: OutlineInputBorder(),
+    ),
+    controller: _search,
+    onChanged: (v) => setState(() => _query = v),
+  );
+
   Widget _header(BuildContext context, Library lib) {
+    if (_narrow(context)) return _phoneHeader(context, lib);
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -248,23 +410,8 @@ class _LibraryPageState extends State<LibraryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // No navigation rail on a phone: the logo goes here.
-                  if (MediaQuery.sizeOf(context).width < 700) ...[
-                    const AppLogo(size: 30),
-                    const SizedBox(width: 10),
-                  ],
-                  Text('Library', style: theme.textTheme.headlineSmall),
-                ],
-              ),
-              Text(
-                storage.inBrowser
-                    ? 'Kept in this browser. Back up from time to time.'
-                    : lib.directory ?? '',
-                style: theme.textTheme.bodySmall,
-              ),
+              Text('Library', style: theme.textTheme.headlineSmall),
+              Text(_whereKept(lib), style: theme.textTheme.bodySmall),
             ],
           ),
           Wrap(
@@ -322,16 +469,6 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                 ],
               ),
-              // No navigation rail on a phone: the account and settings
-              // are here.
-              if (MediaQuery.sizeOf(context).width < 700) ...[
-                const AccountButton(),
-                IconButton(
-                  tooltip: 'Settings',
-                  onPressed: () => showSettings(context),
-                  icon: const Icon(Icons.settings_outlined),
-                ),
-              ],
               if (!kIsWeb && Platform.isWindows)
                 IconButton(
                   tooltip: 'Open folder in Explorer',
@@ -351,8 +488,7 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _filters(BuildContext context, Library lib) {
-    int count(DocumentKind? k) =>
-        lib.entries.where((e) => k == null || e.kind == k).length;
+    if (_narrow(context)) return _phoneFilters(context, lib);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Wrap(
@@ -360,72 +496,69 @@ class _LibraryPageState extends State<LibraryPage> {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          SizedBox(
-            width: 260,
-            child: TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (v) => setState(() => _query = v),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<String>(
-              segments: [
-                ButtonSegment(
-                  value: 'all',
-                  label: Text('All (${count(null)})'),
-                ),
-                ButtonSegment(
-                  value: DocumentKind.opening.name,
-                  icon: _Dot([
-                    kindAccent(DocumentKind.opening, Stone.black),
-                    kindAccent(DocumentKind.opening, Stone.white),
-                  ]),
-                  label: Text('Openings (${count(DocumentKind.opening)})'),
-                ),
-                for (final k in const [
-                  DocumentKind.joseki,
-                  DocumentKind.tricks,
-                ])
-                  ButtonSegment(
-                    value: k.name,
-                    icon: _Dot([kindAccent(k, null)]),
-                    label: Text('${k.plural} (${count(k)})'),
-                  ),
-              ],
-              selected: {_kind?.name ?? 'all'},
-              showSelectedIcon: false,
-              onSelectionChanged: (v) => setState(() {
-                _kind = DocumentKind.values
-                    .where((k) => k.name == v.first)
-                    .firstOrNull;
-                if (_kind?.hasStartPosition ?? false) _color = null;
-              }),
-            ),
-          ),
-          // Joseki and tricks have no color: only openings are filtered.
-          if (!(_kind?.hasStartPosition ?? false))
-            for (final c in const [Stone.black, Stone.white])
-              FilterChip(
-                avatar: StoneIcon(c),
-                label: Text(c.label),
-                side: BorderSide(color: kindAccent(DocumentKind.opening, c)),
-                selected: _color == c,
-                onSelected: (on) => setState(() => _color = on ? c : null),
-              ),
-          for (final s in const [9, 13, 19])
-            FilterChip(
-              label: Text('$s×$s'),
-              selected: _size == s,
-              onSelected: (on) => setState(() => _size = on ? s : null),
-            ),
+          SizedBox(width: 260, child: _searchField()),
+          _filterChips(context, lib),
         ],
       ),
+    );
+  }
+
+  /// The kind, color and size filters.
+  Widget _filterChips(BuildContext context, Library lib) {
+    int count(DocumentKind? k) =>
+        lib.entries.where((e) => k == null || e.kind == k).length;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SegmentedButton<String>(
+            segments: [
+              ButtonSegment(value: 'all', label: Text('All (${count(null)})')),
+              ButtonSegment(
+                value: DocumentKind.opening.name,
+                icon: _Dot([
+                  kindAccent(DocumentKind.opening, Stone.black),
+                  kindAccent(DocumentKind.opening, Stone.white),
+                ]),
+                label: Text('Openings (${count(DocumentKind.opening)})'),
+              ),
+              for (final k in const [DocumentKind.joseki, DocumentKind.tricks])
+                ButtonSegment(
+                  value: k.name,
+                  icon: _Dot([kindAccent(k, null)]),
+                  label: Text('${k.plural} (${count(k)})'),
+                ),
+            ],
+            selected: {_kind?.name ?? 'all'},
+            showSelectedIcon: false,
+            onSelectionChanged: (v) => setState(() {
+              _kind = DocumentKind.values
+                  .where((k) => k.name == v.first)
+                  .firstOrNull;
+              if (_kind?.hasStartPosition ?? false) _color = null;
+            }),
+          ),
+        ),
+        // Joseki and tricks have no color: only openings are filtered.
+        if (!(_kind?.hasStartPosition ?? false))
+          for (final c in const [Stone.black, Stone.white])
+            FilterChip(
+              avatar: StoneIcon(c),
+              label: Text(c.label),
+              side: BorderSide(color: kindAccent(DocumentKind.opening, c)),
+              selected: _color == c,
+              onSelected: (on) => setState(() => _color = on ? c : null),
+            ),
+        for (final s in const [9, 13, 19])
+          FilterChip(
+            label: Text('$s×$s'),
+            selected: _size == s,
+            onSelected: (on) => setState(() => _size = on ? s : null),
+          ),
+      ],
     );
   }
 
@@ -459,12 +592,13 @@ class _LibraryPageState extends State<LibraryPage> {
   ) {
     final wide = shown != null;
     final selected = e == shown;
+    final narrow = _narrow(context);
     final details = [
       '${e.size}×${e.size}',
-      '${e.positions} moves',
+      if (!narrow) '${e.positions} moves',
       '${e.lines} line${e.lines == 1 ? '' : 's'}',
       if (e.folder.isNotEmpty) e.folder,
-      _date(e.modified),
+      if (!narrow) _date(e.modified),
     ].join('  ·  ');
     final accent = kindAccent(e.kind, e.color);
     final tile = ListTile(
@@ -483,17 +617,22 @@ class _LibraryPageState extends State<LibraryPage> {
             icon: const Icon(Icons.school_outlined),
             onPressed: e.error == null ? () => _train(context, e) : null,
           ),
-          IconButton(
-            tooltip: 'Edit',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: e.error == null ? () => _edit(context, e) : null,
-          ),
+          // A phone: a tap on the file edits it.
+          if (!narrow)
+            IconButton(
+              tooltip: 'Edit',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: e.error == null ? () => _edit(context, e) : null,
+            ),
           PopupMenuButton<String>(
-            onSelected: (v) => _menu(context, lib, e, v),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'rename', child: Text('Rename…')),
-              PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-              PopupMenuItem(value: 'delete', child: Text('Delete')),
+            onSelected: (v) =>
+                v == 'edit' ? _edit(context, e) : _menu(context, lib, e, v),
+            itemBuilder: (_) => [
+              if (narrow && e.error == null)
+                const PopupMenuItem(value: 'edit', child: Text('Edit')),
+              const PopupMenuItem(value: 'rename', child: Text('Rename…')),
+              const PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
+              const PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
         ],

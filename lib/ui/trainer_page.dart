@@ -19,6 +19,112 @@ import 'tree_view.dart';
 
 part 'drill_page.dart';
 
+/// A phone: narrow screen, the trainers are laid out for the thumb.
+bool _isPhone(BuildContext context) => MediaQuery.sizeOf(context).width < 600;
+
+/// Phone: one page that scrolls, the board as wide as the screen at the
+/// top (it keeps the finger for itself: the page scrolls from the rest).
+Widget _phoneLayout({
+  required Widget board,
+  required Widget main,
+  required Widget side,
+}) => SingleChildScrollView(
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(padding: const EdgeInsets.all(2), child: board),
+      ExcludeFocus(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [main, const SizedBox(height: 16), side],
+          ),
+        ),
+      ),
+    ],
+  ),
+);
+
+/// Next line, tenuki, hint and edit: a row of big buttons on a phone.
+Widget _trainButtons(
+  BuildContext context, {
+  required VoidCallback onNext,
+  required VoidCallback? onTenuki,
+  required VoidCallback? onHint,
+  required VoidCallback onEdit,
+}) {
+  if (!_isPhone(context)) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton.icon(
+          onPressed: onNext,
+          icon: const Icon(Icons.skip_next),
+          label: const Text('Next line (N)'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onTenuki,
+          icon: const Icon(Icons.call_split),
+          label: const Text('Tenuki (T)'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onHint,
+          icon: const Icon(Icons.lightbulb_outline),
+          label: const Text('Hint (H)'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Edit here'),
+        ),
+      ],
+    );
+  }
+  Widget button(
+    IconData icon,
+    String label,
+    VoidCallback? onPressed,
+    bool main,
+  ) {
+    final child = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 22),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+    const pad = EdgeInsets.symmetric(vertical: 8);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: main
+            ? FilledButton(
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(padding: pad),
+                child: child,
+              )
+            : OutlinedButton(
+                onPressed: onPressed,
+                style: OutlinedButton.styleFrom(padding: pad),
+                child: child,
+              ),
+      ),
+    );
+  }
+
+  return Row(
+    children: [
+      button(Icons.skip_next, 'Next', onNext, true),
+      button(Icons.call_split, 'Tenuki', onTenuki, false),
+      button(Icons.lightbulb_outline, 'Hint', onHint, false),
+      button(Icons.edit_outlined, 'Edit', onEdit, false),
+    ],
+  );
+}
+
 class TrainerPage extends StatelessWidget {
   const TrainerPage({super.key});
 
@@ -526,6 +632,13 @@ class _TrainerState extends State<_Trainer> {
           listenable: _session,
           builder: (context, _) => LayoutBuilder(
             builder: (context, c) {
+              if (_isPhone(context)) {
+                return _phoneLayout(
+                  board: _board(),
+                  main: _mainColumn(context),
+                  side: _sideColumn(context),
+                );
+              }
               if (c.maxWidth >= 900) {
                 final side = c.maxHeight.clamp(320.0, c.maxWidth * 0.62);
                 return Row(
@@ -548,7 +661,7 @@ class _TrainerState extends State<_Trainer> {
                   Flexible(
                     flex: 3,
                     child: Padding(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(_isPhone(context) ? 4 : 8),
                       child: Center(child: _board()),
                     ),
                   ),
@@ -619,7 +732,7 @@ class _TrainerState extends State<_Trainer> {
           );
         }
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(_isPhone(context) ? 12 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [main, const SizedBox(height: 16), settings],
@@ -637,9 +750,19 @@ class _TrainerState extends State<_Trainer> {
     final accuracy = attempts == 0
         ? null
         : (100 * s.correctMoves / attempts).round();
+    final phone = _isPhone(context);
+    final buttons = _trainButtons(
+      context,
+      onNext: s.nextLine,
+      onTenuki: s.userToMove ? () => s.userPlay(null) : null,
+      onHint: s.userToMove ? s.showHint : null,
+      onEdit: () => _editHere(context),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // On a phone the buttons are right under the board.
+        if (phone) ...[buttons, const SizedBox(height: 12)],
         Row(
           children: [
             StoneIcon(_color, size: 22),
@@ -685,33 +808,7 @@ class _TrainerState extends State<_Trainer> {
           const SizedBox(height: 12),
           _MistakeBox(node: m, size: widget.doc.size),
         ],
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: s.nextLine,
-              icon: const Icon(Icons.skip_next),
-              label: const Text('Next line (N)'),
-            ),
-            OutlinedButton.icon(
-              onPressed: s.userToMove ? () => s.userPlay(null) : null,
-              icon: const Icon(Icons.call_split),
-              label: const Text('Tenuki (T)'),
-            ),
-            OutlinedButton.icon(
-              onPressed: s.userToMove ? s.showHint : null,
-              icon: const Icon(Icons.lightbulb_outline),
-              label: const Text('Hint (H)'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _editHere(context),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit here'),
-            ),
-          ],
-        ),
+        if (!phone) ...[const SizedBox(height: 12), buttons],
         const SizedBox(height: 20),
         _treeSection(context),
         const SizedBox(height: 20),
@@ -947,8 +1044,8 @@ class _FeedbackCard extends StatelessWidget {
     };
     final comment = feedback.comment;
     return Container(
-      constraints: const BoxConstraints(minHeight: 96),
-      padding: const EdgeInsets.all(16),
+      constraints: BoxConstraints(minHeight: _isPhone(context) ? 0 : 96),
+      padding: EdgeInsets.all(_isPhone(context) ? 12 : 16),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         border: Border(left: BorderSide(color: color, width: 5)),

@@ -87,6 +87,13 @@ class _DrillViewState extends State<_DrillView> {
 
   Widget _trainArea(BuildContext context) => LayoutBuilder(
     builder: (context, c) {
+      if (_isPhone(context)) {
+        return _phoneLayout(
+          board: _board(),
+          main: _mainColumn(context),
+          side: _sideColumn(context),
+        );
+      }
       if (c.maxWidth >= 900) {
         final side = c.maxHeight.clamp(320.0, c.maxWidth * 0.62);
         return Row(
@@ -109,7 +116,7 @@ class _DrillViewState extends State<_DrillView> {
           Flexible(
             flex: 3,
             child: Padding(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(_isPhone(context) ? 4 : 8),
               child: Center(child: _board()),
             ),
           ),
@@ -178,7 +185,7 @@ class _DrillViewState extends State<_DrillView> {
           );
         }
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(_isPhone(context) ? 12 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [main, const SizedBox(height: 16), side],
@@ -196,43 +203,51 @@ class _DrillViewState extends State<_DrillView> {
     final s = d.session;
     final l = d.line;
     final files = d.lines.map((l) => l.doc).toSet().length;
+    final phone = _isPhone(context);
+    final title = <Widget>[
+      Row(
+        children: [
+          Icon(Icons.all_inclusive, size: 28, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('Global trainer', style: theme.textTheme.headlineSmall),
+          ),
+          Tooltip(
+            message: 'Read the library again (after editing files)',
+            child: TextButton.icon(
+              onPressed: state.startDrill,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reload'),
+            ),
+          ),
+        ],
+      ),
+      Text(
+        '${d.lines.length} lines from $files file${files == 1 ? '' : 's'}, '
+        'at random. A missed line comes back until you play it without '
+        'mistake.',
+        style: theme.textTheme.bodySmall,
+      ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Icon(
-              Icons.all_inclusive,
-              size: 28,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Global trainer',
-                style: theme.textTheme.headlineSmall,
-              ),
-            ),
-            Tooltip(
-              message: 'Read the library again (after editing files)',
-              child: TextButton.icon(
-                onPressed: state.startDrill,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Reload'),
-              ),
-            ),
-          ],
-        ),
-        Text(
-          '${d.lines.length} lines from $files file${files == 1 ? '' : 's'}, '
-          'at random. A missed line comes back until you play it without '
-          'mistake.',
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
+        // On a phone the line comes first, right under the board.
+        if (!phone) ...[...title, const SizedBox(height: 16)],
         if (s == null || l == null)
           _nothingToTrain(context)
         else ...[
+          // On a phone the buttons are right under the board.
+          if (phone) ...[
+            _trainButtons(
+              context,
+              onNext: d.next,
+              onTenuki: s.userToMove ? () => s.userPlay(null) : null,
+              onHint: s.userToMove ? s.showHint : null,
+              onEdit: () => _editAt(context, l.doc.doc, s.current),
+            ),
+            const SizedBox(height: 12),
+          ],
           _lineCard(context, l),
           const SizedBox(height: 12),
           _FeedbackCard(
@@ -257,34 +272,18 @@ class _DrillViewState extends State<_DrillView> {
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.icon(
-                onPressed: d.next,
-                icon: const Icon(Icons.skip_next),
-                label: const Text('Next line (N)'),
-              ),
-              OutlinedButton.icon(
-                onPressed: s.userToMove ? () => s.userPlay(null) : null,
-                icon: const Icon(Icons.call_split),
-                label: const Text('Tenuki (T)'),
-              ),
-              OutlinedButton.icon(
-                onPressed: s.userToMove ? s.showHint : null,
-                icon: const Icon(Icons.lightbulb_outline),
-                label: const Text('Hint (H)'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => _editAt(context, l.doc.doc, s.current),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit here'),
-              ),
-            ],
-          ),
+          if (!phone) ...[
+            const SizedBox(height: 12),
+            _trainButtons(
+              context,
+              onNext: d.next,
+              onTenuki: s.userToMove ? () => s.userPlay(null) : null,
+              onHint: s.userToMove ? s.showHint : null,
+              onEdit: () => _editAt(context, l.doc.doc, s.current),
+            ),
+          ],
         ],
+        if (phone) ...[const SizedBox(height: 24), ...title],
         const SizedBox(height: 20),
         _Section(title: 'Your knowledge', child: _knowledge(context)),
         const SizedBox(height: 20),
@@ -319,8 +318,9 @@ class _DrillViewState extends State<_DrillView> {
     final theme = Theme.of(context);
     final accent = kindAccent(l.doc.kind, l.color);
     final rec = d.recordOf(l);
+    final phone = _isPhone(context);
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(phone ? 10 : 14),
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
@@ -339,16 +339,18 @@ class _DrillViewState extends State<_DrillView> {
               Expanded(
                 child: Text(
                   l.doc.name,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style:
+                      (phone
+                              ? theme.textTheme.titleMedium
+                              : theme.textTheme.titleLarge)
+                          ?.copyWith(fontWeight: FontWeight.w700),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (d.reason case final why?) _ReasonChip(why),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: phone ? 4 : 8),
           Row(
             children: [
               StoneIcon(l.color, size: 18),

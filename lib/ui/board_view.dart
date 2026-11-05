@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../go/board.dart';
@@ -101,6 +102,11 @@ class BoardView extends StatefulWidget {
 class _BoardViewState extends State<BoardView> {
   Point? _hover;
 
+  /// Touch screen: the point under the finger, while it is held down. A
+  /// cross of lines shows it; the stone is played when the finger lifts.
+  Point? _press;
+  bool _touching = false;
+
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
@@ -118,15 +124,45 @@ class _BoardViewState extends State<BoardView> {
                 : SystemMouseCursors.click,
             onHover: (e) => _setHover(geo.pointAt(e.localPosition)),
             onExit: (_) => _setHover(null),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (d) {
-                final p = geo.pointAt(d.localPosition);
+            child: Listener(
+              onPointerDown: (e) {
+                if (widget.onTap == null || e.kind == PointerDeviceKind.mouse) {
+                  return;
+                }
+                _touching = true;
+                setState(() => _press = geo.pointAt(e.localPosition));
+              },
+              onPointerMove: (e) {
+                if (!_touching) return;
+                final p = geo.pointAt(e.localPosition);
+                if (p != _press) setState(() => _press = p);
+              },
+              onPointerUp: (_) {
+                if (!_touching) return;
+                final p = _press;
+                _touching = false;
+                setState(() => _press = null);
                 if (p != null) widget.onTap?.call(p);
               },
-              child: CustomPaint(
-                size: Size.square(geo.extent),
-                painter: _BoardPainter(widget, geo, _hover),
+              onPointerCancel: (_) {
+                _touching = false;
+                setState(() => _press = null);
+              },
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                // A mouse plays on click; a finger when it lifts (above).
+                onTapUp: (d) {
+                  if (d.kind != PointerDeviceKind.mouse) return;
+                  final p = geo.pointAt(d.localPosition);
+                  if (p != null) widget.onTap?.call(p);
+                },
+                // The finger moves the cross: the page must not scroll.
+                onVerticalDragStart: widget.onTap == null ? null : (_) {},
+                onHorizontalDragStart: widget.onTap == null ? null : (_) {},
+                child: CustomPaint(
+                  size: Size.square(geo.extent),
+                  painter: _BoardPainter(widget, geo, _hover, _press),
+                ),
               ),
             ),
           );
@@ -164,11 +200,14 @@ class _Geometry {
 }
 
 class _BoardPainter extends CustomPainter {
-  _BoardPainter(this.w, this.g, this.hover);
+  _BoardPainter(this.w, this.g, this.hover, this.press);
 
   final BoardView w;
   final _Geometry g;
   final Point? hover;
+
+  /// The point under the finger (touch screen), with a cross of lines.
+  final Point? press;
 
   Color get _wood => w.style.light;
   Color get _woodDark => w.style.dark;
@@ -244,7 +283,17 @@ class _BoardPainter extends CustomPainter {
 
     // Hover preview (under the variation letters).
     final hs = w.hoverStone;
-    if (hover != null && hs != null && board[hover!] == Stone.empty) {
+    if (press case final p?) {
+      final c = g.center(p);
+      final cross = Paint()
+        ..color = const Color(0xFFE5393A)
+        ..strokeWidth = math.max(2, g.cell * 0.09);
+      canvas.drawLine(Offset(start, c.dy), Offset(end, c.dy), cross);
+      canvas.drawLine(Offset(c.dx, start), Offset(c.dx, end), cross);
+      if (hs != null && board[p] == Stone.empty) {
+        _stone(canvas, c, r, hs, 0.6);
+      }
+    } else if (hover != null && hs != null && board[hover!] == Stone.empty) {
       _stone(canvas, g.center(hover!), r, hs, 0.4);
     }
 
