@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.goopener" "\0"
-            VALUE "FileDescription", "GoOpener" "\0"
+            VALUE "CompanyName", "com.godojo" "\0"
+            VALUE "FileDescription", "Go Dojo" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "go_opener" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.goopener. All rights reserved." "\0"
-            VALUE "OriginalFilename", "go_opener.exe" "\0"
-            VALUE "ProductName", "GoOpener" "\0"
+            VALUE "InternalName", "go_dojo" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Go Dojo. All rights reserved." "\0"
+            VALUE "OriginalFilename", "go_dojo.exe" "\0"
+            VALUE "ProductName", "Go Dojo" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

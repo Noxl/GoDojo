@@ -1,10 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_opener/go/point.dart';
-import 'package:go_opener/go/stone.dart';
-import 'package:go_opener/model/trainer_session.dart';
-import 'package:go_opener/sgf/sgf.dart';
+import 'package:go_dojo/go/point.dart';
+import 'package:go_dojo/go/stone.dart';
+import 'package:go_dojo/model/trainer_session.dart';
+import 'package:go_dojo/sgf/sgf.dart';
 
 const _instant = TrainerOptions(
   opponentDelay: Duration.zero,

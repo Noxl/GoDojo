@@ -101,7 +101,7 @@ class OpeningDocument extends ChangeNotifier {
       ..set('GM', '1')
       ..set('FF', '4')
       ..set('CA', 'UTF-8')
-      ..set('AP', 'GoOpener:1.0')
+      ..set('AP', 'GoDojo:1.0')
       ..set('SZ', '$size')
       ..set('GN', name);
     if (kind.hasStartPosition) {

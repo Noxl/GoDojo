@@ -19,7 +19,7 @@ Future<String> buildBackup(Library lib, DrillProgress progress) async {
     }
   }
   return const JsonEncoder.withIndent(' ').convert({
-    'app': 'GoOpener',
+    'app': 'Go Dojo',
     'type': 'backup',
     'version': 1,
     'created': DateTime.now().toIso8601String(),
@@ -38,7 +38,7 @@ Future<(int, int)> restoreBackup(
 ) async {
   final j = jsonDecode(text);
   if (j is! Map || j['type'] != 'backup' || j['files'] is! Map) {
-    throw const FormatException('This is not a GoOpener backup.');
+    throw const FormatException('This is not a Go Dojo backup.');
   }
   final dir = lib.directory!;
   var files = 0;

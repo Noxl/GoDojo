@@ -17,10 +17,25 @@ class WebStorage implements Storage {
   @override
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    await _migrateFromGoOpener();
+  }
+
+  /// The app was called GoOpener: its library moves to the new folder name.
+  Future<void> _migrateFromGoOpener() async {
+    const old = '/GoOpener Library';
+    const now = '/Go Dojo Library';
+    for (final k in _prefs.getKeys().toList()) {
+      final v = _prefs.get(k);
+      final key = k.replaceAll(old, now);
+      if (v is String && (key != k || v.contains(old))) {
+        await _prefs.setString(key, v.replaceAll(old, now));
+        if (key != k) await _prefs.remove(k);
+      }
+    }
   }
 
   @override
-  Future<String> defaultLibraryDir() async => '/GoOpener Library';
+  Future<String> defaultLibraryDir() async => '/Go Dojo Library';
 
   @override
   Future<String> appDataDir() async => '/app';

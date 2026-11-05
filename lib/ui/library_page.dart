@@ -12,6 +12,7 @@ import '../model/opening_document.dart';
 import '../sgf/sgf_node.dart';
 import '../storage/storage.dart';
 import 'actions.dart';
+import 'app_logo.dart';
 import 'board_view.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -245,7 +246,17 @@ class _LibraryPageState extends State<LibraryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Opening library', style: theme.textTheme.headlineSmall),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // No navigation rail on a phone: the logo goes here.
+                  if (MediaQuery.sizeOf(context).width < 700) ...[
+                    const AppLogo(size: 30),
+                    const SizedBox(width: 10),
+                  ],
+                  Text('Library', style: theme.textTheme.headlineSmall),
+                ],
+              ),
               Text(
                 storage.inBrowser
                     ? 'Kept in this browser. Back up from time to time.'
@@ -556,7 +567,7 @@ class _LibraryPageState extends State<LibraryPage> {
     if (!context.mounted) return;
     await saveTextFile(
       context,
-      'GoOpener backup ${_date(d)}.json',
+      'Go Dojo backup ${_date(d)}.json',
       text,
       mimeType: 'application/json',
     );

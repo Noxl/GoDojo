@@ -1,4 +1,4 @@
-name: go_opener
+name: go_dojo
 description: "Learn Go openings, joseki and tricks from SGF files."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -57,6 +57,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/starter/
+    - assets/logo.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -7,6 +7,7 @@ import 'analysis/katago.dart';
 import 'app_state.dart';
 import 'model/starter.dart';
 import 'storage/storage.dart';
+import 'ui/app_logo.dart';
 import 'ui/board_view.dart';
 import 'ui/editor_page.dart';
 import 'ui/library_page.dart';
@@ -20,7 +21,7 @@ Future<void> main() async {
   await state.library.init();
   await importStarterPack(state.library);
   await state.analysis.load();
-  runApp(GoOpenerApp(state: state));
+  runApp(GoDojoApp(state: state));
 }
 
 ThemeData _theme(Brightness brightness) {
@@ -36,8 +37,8 @@ ThemeData _theme(Brightness brightness) {
   );
 }
 
-class GoOpenerApp extends StatelessWidget {
-  const GoOpenerApp({super.key, required this.state});
+class GoDojoApp extends StatelessWidget {
+  const GoDojoApp({super.key, required this.state});
   final AppState state;
 
   @override
@@ -47,7 +48,7 @@ class GoOpenerApp extends StatelessWidget {
       child: ListenableBuilder(
         listenable: state,
         builder: (context, _) => MaterialApp(
-          title: 'GoOpener',
+          title: 'Go Dojo',
           debugShowCheckedModeBanner: false,
           theme: _theme(Brightness.light),
           darkTheme: _theme(Brightness.dark),
@@ -106,13 +107,9 @@ class HomeShell extends StatelessWidget {
             selectedIndex: state.section.index,
             onDestinationSelected: select,
             labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Icon(
-                Icons.contrast,
-                size: 32,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+            leading: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Tooltip(message: 'Go Dojo', child: AppLogo(size: 40)),
             ),
             trailing: Expanded(
               child: Align(

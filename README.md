@@ -1,8 +1,8 @@
-# GoOpener
+# Go Dojo
 
 Learn your Go openings (josekis, fusekis, pet openings) from SGF files.
 
-- **Library**: a folder of `.sgf` files (default `Documents\GoOpener Library`, scanned recursively). Search, filter by color and board size, import, rename, duplicate or delete.
+- **Library**: a folder of `.sgf` files (default `Documents\Go Dojo Library`, scanned recursively). Search, filter by color and board size, import, rename, duplicate or delete.
 - **Editor**: build the opening tree for 9×9, 13×13 or 19×19, studied as Black or White.
   - Tools: play moves, add black or white stones, erase, triangle, square, circle, X, letter and number labels, tenuki (key T: the move is played elsewhere, no stone on this board; stored as a pass).
   - Move marks: Bad (BM); unmarked moves are good. Comments.

@@ -2,10 +2,10 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_opener/model/drill.dart';
-import 'package:go_opener/model/library.dart';
-import 'package:go_opener/model/opening_document.dart';
-import 'package:go_opener/storage/storage.dart';
+import 'package:go_dojo/model/drill.dart';
+import 'package:go_dojo/model/library.dart';
+import 'package:go_dojo/model/opening_document.dart';
+import 'package:go_dojo/storage/storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Run with: flutter test --platform chrome test/web_storage_test.dart
@@ -19,7 +19,7 @@ void main() {
     expect(storage.inBrowser, isTrue);
     final lib = Library();
     await lib.init();
-    expect(lib.directory, '/GoOpener Library');
+    expect(lib.directory, '/Go Dojo Library');
     await lib.importFiles([('J.sgf', '(;GN[J]GK[joseki]SZ[9];B[cc])')]);
     expect(lib.entries.single.name, 'J');
     expect(lib.entries.single.kind, DocumentKind.joseki);
@@ -31,7 +31,7 @@ void main() {
     expect(lib.entries.single.name, 'Renamed');
 
     final dest = await lib.rename(lib.entries.single, 'Other');
-    expect(dest, '/GoOpener Library/Other.sgf');
+    expect(dest, '/Go Dojo Library/Other.sgf');
     await lib.delete(lib.entries.single);
     expect(lib.entries, isEmpty);
   });

@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_opener/app_state.dart';
-import 'package:go_opener/go/point.dart';
-import 'package:go_opener/go/stone.dart';
-import 'package:go_opener/main.dart';
-import 'package:go_opener/model/drill.dart';
-import 'package:go_opener/model/trainer_session.dart';
-import 'package:go_opener/model/opening_document.dart';
+import 'package:go_dojo/app_state.dart';
+import 'package:go_dojo/go/point.dart';
+import 'package:go_dojo/go/stone.dart';
+import 'package:go_dojo/main.dart';
+import 'package:go_dojo/model/drill.dart';
+import 'package:go_dojo/model/trainer_session.dart';
+import 'package:go_dojo/model/opening_document.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -17,7 +17,7 @@ void main() {
     tester.view.physicalSize = const Size(1500, 950);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(GoOpenerApp(state: state));
+    await tester.pumpWidget(GoDojoApp(state: state));
     await tester.pumpAndSettle();
   }
 
@@ -46,7 +46,7 @@ void main() {
     tester.view.physicalSize = const Size(1500, 950);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(GoOpenerApp(state: state));
+    await tester.pumpWidget(GoDojoApp(state: state));
     // Lets the preview read its file.
     Future<void> load() async {
       for (var i = 0; i < 5; i++) {
@@ -98,7 +98,7 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(GoOpenerApp(state: state));
+    await tester.pumpWidget(GoDojoApp(state: state));
     for (var i = 0; i < 3; i++) {
       await tester.pump();
       await tester.runAsync(
@@ -240,7 +240,7 @@ void main() {
       tester.view.physicalSize = Size(width, 950);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(GoOpenerApp(state: state));
+      await tester.pumpWidget(GoDojoApp(state: state));
       await tester.pumpAndSettle();
       expect(find.text('Global trainer'), findsOneWidget);
       expect(find.textContaining('You play'), findsWidgets);

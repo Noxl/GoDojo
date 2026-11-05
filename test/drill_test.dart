@@ -2,11 +2,11 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_opener/go/point.dart';
-import 'package:go_opener/go/stone.dart';
-import 'package:go_opener/model/drill.dart';
-import 'package:go_opener/model/opening_document.dart';
-import 'package:go_opener/model/trainer_session.dart';
+import 'package:go_dojo/go/point.dart';
+import 'package:go_dojo/go/stone.dart';
+import 'package:go_dojo/model/drill.dart';
+import 'package:go_dojo/model/opening_document.dart';
+import 'package:go_dojo/model/trainer_session.dart';
 
 const _instant = TrainerOptions(
   opponentDelay: Duration.zero,

@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_opener/go/board.dart';
-import 'package:go_opener/go/point.dart';
-import 'package:go_opener/go/stone.dart';
-import 'package:go_opener/model/annotations.dart';
-import 'package:go_opener/model/opening_document.dart';
-import 'package:go_opener/sgf/sgf.dart';
-import 'package:go_opener/sgf/sgf_node.dart';
-import 'package:go_opener/ui/tree_view.dart';
+import 'package:go_dojo/go/board.dart';
+import 'package:go_dojo/go/point.dart';
+import 'package:go_dojo/go/stone.dart';
+import 'package:go_dojo/model/annotations.dart';
+import 'package:go_dojo/model/opening_document.dart';
+import 'package:go_dojo/sgf/sgf.dart';
+import 'package:go_dojo/sgf/sgf_node.dart';
+import 'package:go_dojo/ui/tree_view.dart';
 
 void main() {
   group('SGF', () {

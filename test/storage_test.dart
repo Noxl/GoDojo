@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_opener/model/backup.dart';
-import 'package:go_opener/model/drill.dart';
-import 'package:go_opener/model/library.dart';
-import 'package:go_opener/storage/storage.dart';
+import 'package:go_dojo/model/backup.dart';
+import 'package:go_dojo/model/drill.dart';
+import 'package:go_dojo/model/library.dart';
+import 'package:go_dojo/storage/storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
