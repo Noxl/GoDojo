@@ -397,6 +397,48 @@ class OpeningDocument extends ChangeNotifier {
 
   void setJudgement(PositionJudgement j) => _mutate(() => j.applyTo(_current));
 
+  /// Puts the move of [node] (the current one by default) on [p] instead,
+  /// keeping every move after it. Returns the result and the number of
+  /// later moves that are no longer legal (they are kept: fix or delete
+  /// them).
+  (MoveResult, int) replaceMove(Point p, [SgfNode? node]) {
+    final n = node ?? _current;
+    final c = n.moveColor;
+    final parent = n.parent;
+    if (c == null || parent == null) return (MoveResult.offBoard, 0);
+    if (n.movePoint(size) == p) return (MoveResult.ok, 0);
+    final before = positionAt(parent, size);
+    final r = before.check(p, c);
+    if (r != MoveResult.ok) return (r, 0);
+    // Already a variation from here.
+    if (parent.children.any(
+      (s) => s.moveColor == c && s.movePoint(size) == p,
+    )) {
+      return (MoveResult.occupied, 0);
+    }
+    _mutate(() => n.setMove(c, p));
+
+    // Replay what follows on the new position.
+    var broken = 0;
+    void walk(SgfNode node, Board board) {
+      for (final child in node.children) {
+        final b = board.copy();
+        final cc = child.moveColor;
+        final cp = child.movePoint(size);
+        if (cc != null && cp != null && b.check(cp, cc) != MoveResult.ok) {
+          broken++;
+        }
+        applyNode(b, child, size);
+        walk(child, b);
+      }
+    }
+
+    final after = before.copy();
+    applyNode(after, n, size);
+    walk(n, after);
+    return (MoveResult.ok, broken);
+  }
+
   /// Deletes [node] and its subtree. The root cannot be deleted.
   void deleteNode([SgfNode? node]) {
     final n = node ?? _current;

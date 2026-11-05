@@ -113,6 +113,13 @@ class _EditorState extends State<_Editor> {
       doc.hasStartPosition && doc.root.children.isEmpty && !doc.hasStartStones;
   Stone _startStone = Stone.black;
 
+  /// The move being moved to another place (the next click), if any.
+  SgfNode? _replacing;
+
+  /// Changing the place of the current move.
+  bool get _isReplacing =>
+      _replacing != null && _replacing == doc.current && !_editStart;
+
   /// KataGo analysis of the current position is shown.
   bool _analyze = false;
   late final AnalysisService _analysis = AppScope.read(context).analysis;
@@ -155,6 +162,10 @@ class _EditorState extends State<_Editor> {
       doc.setStartStone(p, _startStone);
       return;
     }
+    if (_isReplacing) {
+      _replaceAt(p);
+      return;
+    }
     switch (_tool) {
       case EditTool.play:
         final r = doc.play(p);
@@ -177,6 +188,38 @@ class _EditorState extends State<_Editor> {
           EditTool.cross:
         doc.toggleMarkup(p, _tool.shape!);
     }
+  }
+
+  /// Starts (or stops) changing the place of the current move.
+  void _toggleReplace() {
+    final n = doc.current;
+    setState(() => _replacing = _isReplacing || !n.hasMove ? null : n);
+  }
+
+  void _replaceAt(Point p) {
+    final n = _replacing!;
+    final number = n.moveNumber;
+    final (r, broken) = doc.replaceMove(p, n);
+    if (r != MoveResult.ok) {
+      showMessage(
+        context,
+        r == MoveResult.occupied
+            ? 'Not possible: there is a stone there, or this move is already '
+                  'a variation here.'
+            : 'Illegal move: ${r.name}',
+      );
+      return;
+    }
+    setState(() => _replacing = null);
+    showMessage(
+      context,
+      broken == 0
+          ? 'Move $number changed. The moves after it are kept '
+                '(Ctrl+Z to undo).'
+          : 'Move $number changed, but $broken move${broken == 1 ? ' after it is' : 's after it are'} '
+                'no longer legal (on a stone, or now suicide). Check the '
+                'lines after it, or Ctrl+Z to undo.',
+    );
   }
 
   Future<void> _deleteBranch() async {
@@ -278,6 +321,10 @@ class _EditorState extends State<_Editor> {
     const SingleActivator(LogicalKeyboardKey.keyZ, control: true): doc.undo,
     const SingleActivator(LogicalKeyboardKey.keyY, control: true): doc.redo,
     const SingleActivator(LogicalKeyboardKey.delete): _deleteBranch,
+    const SingleActivator(LogicalKeyboardKey.keyR): _toggleReplace,
+    const SingleActivator(LogicalKeyboardKey.escape): () {
+      if (_replacing != null) setState(() => _replacing = null);
+    },
     const SingleActivator(LogicalKeyboardKey.keyT): () {
       if (!_editStart) doc.play(null);
     },
@@ -663,6 +710,7 @@ class _EditorState extends State<_Editor> {
   Widget _board() {
     final cur = doc.current;
     final size = doc.size;
+    if (_isReplacing) return _replaceBoard(cur, size);
     final markup = <Point, MarkupShape>{};
     for (final s in MarkupShape.values) {
       for (final v in cur.getAll(s.sgfId)) {
@@ -707,6 +755,58 @@ class _EditorState extends State<_Editor> {
               },
         onTap: _onBoardTap,
       ),
+    );
+  }
+
+  /// The position before the move being changed, its old place crossed:
+  /// a click puts it somewhere else.
+  Widget _replaceBoard(SgfNode cur, int size) {
+    final scheme = Theme.of(context).colorScheme;
+    final old = cur.movePoint(size);
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+          decoration: BoxDecoration(
+            color: scheme.tertiaryContainer,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.swap_horiz, color: scheme.onTertiaryContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Click the new place of move ${cur.moveNumber}. '
+                  'Everything after it is kept.',
+                  style: TextStyle(color: scheme.onTertiaryContainer),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _replacing = null),
+                child: const Text('Cancel (Esc)'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: BoardView(
+              style: AppScope.of(context).boardStyle,
+              board: positionAt(cur.parent!, size),
+              lastMove: null,
+              markup: {?old: MarkupShape.cross},
+              labels: const {},
+              variations: const [],
+              analysis: const [],
+              hoverStone: cur.moveColor,
+              onTap: _onBoardTap,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -889,6 +989,14 @@ class _EditorState extends State<_Editor> {
                 ? () => doc.moveVariation(1, start)
                 : null,
             icon: const Icon(Icons.arrow_downward),
+          ),
+          IconButton(
+            tooltip: 'Change the place of this move, keeping what follows (R)',
+            isSelected: _isReplacing,
+            onPressed: cur.hasMove && cur.movePoint(doc.size) != null
+                ? _toggleReplace
+                : null,
+            icon: const Icon(Icons.swap_horiz),
           ),
           IconButton(
             tooltip: 'Train only the lines from this move',
