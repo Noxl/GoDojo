@@ -199,7 +199,7 @@ class _EditorState extends State<_Editor> {
     setState(() => _replacing = _isReplacing || !n.hasMove ? null : n);
   }
 
-  void _replaceAt(Point p) {
+  void _replaceAt(Point? p) {
     final n = _replacing!;
     final number = n.moveNumber;
     final (r, broken) = doc.replaceMove(p, n);
@@ -207,8 +207,10 @@ class _EditorState extends State<_Editor> {
       showMessage(
         context,
         r == MoveResult.occupied
-            ? 'Not possible: there is a stone there, or this move is already '
-                  'a variation here.'
+            ? p == null
+                  ? 'Not possible: tenuki is already a variation here.'
+                  : 'Not possible: there is a stone there, or this move is '
+                        'already a variation here.'
             : 'Illegal move: ${r.name}',
       );
       return;
@@ -217,7 +219,8 @@ class _EditorState extends State<_Editor> {
     showMessage(
       context,
       broken == 0
-          ? 'Move $number changed. The moves after it are kept '
+          ? 'Move $number ${p == null ? 'is now a tenuki' : 'changed'}. '
+                'The moves after it are kept '
                 '(Ctrl+Z to undo).'
           : 'Move $number changed, but $broken move${broken == 1 ? ' after it is' : 's after it are'} '
                 'no longer legal (on a stone, or now suicide). Check the '
@@ -329,7 +332,11 @@ class _EditorState extends State<_Editor> {
       if (_replacing != null) setState(() => _replacing = null);
     },
     const SingleActivator(LogicalKeyboardKey.keyT): () {
-      if (!_editStart) doc.play(null);
+      if (_isReplacing) {
+        _replaceAt(null);
+      } else if (!_editStart) {
+        doc.play(null);
+      }
     },
     CharacterActivator(AppScope.read(context).analysisKey): _toggleAnalysis,
     const SingleActivator(LogicalKeyboardKey.keyZ, control: true, shift: true):
@@ -872,20 +879,37 @@ class _EditorState extends State<_Editor> {
             color: scheme.tertiaryContainer,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.swap_horiz, color: scheme.onTertiaryContainer),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Click the new place of move ${cur.moveNumber}. '
-                  'Everything after it is kept.',
-                  style: TextStyle(color: scheme.onTertiaryContainer),
-                ),
+              Row(
+                children: [
+                  Icon(Icons.swap_horiz, color: scheme.onTertiaryContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Click the new place of move ${cur.moveNumber}, or '
+                      'tenuki. Everything after it is kept.',
+                      style: TextStyle(color: scheme.onTertiaryContainer),
+                    ),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () => setState(() => _replacing = null),
-                child: const Text('Cancel (Esc)'),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                children: [
+                  if (!cur.isPass)
+                    OutlinedButton.icon(
+                      onPressed: () => _replaceAt(null),
+                      icon: const Icon(Icons.call_split, size: 18),
+                      label: const Text('Tenuki (T)'),
+                    ),
+                  TextButton(
+                    onPressed: () => setState(() => _replacing = null),
+                    child: const Text('Cancel (Esc)'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1093,9 +1117,7 @@ class _EditorState extends State<_Editor> {
           IconButton(
             tooltip: 'Change the place of this move, keeping what follows (R)',
             isSelected: _isReplacing,
-            onPressed: cur.hasMove && cur.movePoint(doc.size) != null
-                ? _toggleReplace
-                : null,
+            onPressed: cur.hasMove ? _toggleReplace : null,
             icon: const Icon(Icons.swap_horiz),
           ),
           IconButton(

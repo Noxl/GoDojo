@@ -48,4 +48,15 @@ void main() {
     d.play(const Point(4, 4)); // a second white answer
     expect(d.replaceMove(const Point(4, 4), second).$1, MoveResult.occupied);
   });
+
+  test('a move becomes a tenuki and back, the moves after it stay', () {
+    final d = line();
+    final second = d.root.children.single.children.single;
+    expect(d.replaceMove(null, second), (MoveResult.ok, 0));
+    expect(second.isPass, isTrue);
+    expect(second.moveColor, Stone.white);
+    expect(second.descendants.where((n) => n.hasMove).length, 2);
+    expect(d.replaceMove(const Point(6, 6), second), (MoveResult.ok, 0));
+    expect(second.movePoint(9), const Point(6, 6));
+  });
 }

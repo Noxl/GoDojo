@@ -397,23 +397,25 @@ class OpeningDocument extends ChangeNotifier {
 
   void setJudgement(PositionJudgement j) => _mutate(() => j.applyTo(_current));
 
-  /// Puts the move of [node] (the current one by default) on [p] instead,
-  /// keeping every move after it. Returns the result and the number of
+  /// Puts the move of [node] (the current one by default) on [p] instead
+  /// (null: a tenuki), keeping every move after it. Returns the result and the number of
   /// later moves that are no longer legal (they are kept: fix or delete
   /// them).
-  (MoveResult, int) replaceMove(Point p, [SgfNode? node]) {
+  (MoveResult, int) replaceMove(Point? p, [SgfNode? node]) {
     final n = node ?? _current;
     final c = n.moveColor;
     final parent = n.parent;
     if (c == null || parent == null) return (MoveResult.offBoard, 0);
-    if (n.movePoint(size) == p) return (MoveResult.ok, 0);
+    bool same(SgfNode s) =>
+        s.moveColor == c && (p == null ? s.isPass : s.movePoint(size) == p);
+    if (same(n)) return (MoveResult.ok, 0);
     final before = positionAt(parent, size);
-    final r = before.check(p, c);
-    if (r != MoveResult.ok) return (r, 0);
+    if (p != null) {
+      final r = before.check(p, c);
+      if (r != MoveResult.ok) return (r, 0);
+    }
     // Already a variation from here.
-    if (parent.children.any(
-      (s) => s.moveColor == c && s.movePoint(size) == p,
-    )) {
+    if (parent.children.any(same)) {
       return (MoveResult.occupied, 0);
     }
     _mutate(() => n.setMove(c, p));
