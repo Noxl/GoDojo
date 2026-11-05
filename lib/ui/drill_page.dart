@@ -237,6 +237,8 @@ class _DrillViewState extends State<_DrillView> {
         if (s == null || l == null)
           _nothingToTrain(context)
         else ...[
+          _turnBanner(context, s, l),
+          const SizedBox(height: 12),
           // On a phone the buttons are right under the board.
           if (phone) ...[
             _trainButtons(
@@ -286,9 +288,72 @@ class _DrillViewState extends State<_DrillView> {
         if (phone) ...[const SizedBox(height: 24), ...title],
         const SizedBox(height: 20),
         _Section(title: 'Your knowledge', child: _knowledge(context)),
-        const SizedBox(height: 20),
-        _Section(title: 'This session', child: _sessionStats()),
       ],
+    );
+  }
+
+  /// Whose turn it is, big: the first thing to see.
+  Widget _turnBanner(BuildContext context, TrainerSession s, DrillLine l) {
+    final theme = Theme.of(context);
+    final mine = s.userToMove;
+    final done = s.lineDone;
+    final turn = mine ? l.color : l.color.opponent;
+    final dark = turn == Stone.black;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: done
+            ? theme.colorScheme.surfaceContainerHigh
+            : dark
+            ? const Color(0xFF1C1C1E)
+            : const Color(0xFFF4F1E8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: mine ? theme.colorScheme.primary : theme.colorScheme.outline,
+          width: mine ? 2.5 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          if (done)
+            const Icon(Icons.flag, size: 30, color: Color(0xFF2F74D0))
+          else
+            StoneIcon(turn, size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  done ? 'Line complete' : '${turn.label} to play',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: done
+                        ? null
+                        : dark
+                        ? Colors.white
+                        : const Color(0xFF1C1C1E),
+                  ),
+                ),
+                Text(
+                  done
+                      ? 'Next line when you are ready.'
+                      : mine
+                      ? 'Your move — you play ${l.color.label}.'
+                      : 'The opponent is playing…',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: done
+                        ? null
+                        : dark
+                        ? Colors.white70
+                        : Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -353,13 +418,6 @@ class _DrillViewState extends State<_DrillView> {
           SizedBox(height: phone ? 4 : 8),
           Row(
             children: [
-              StoneIcon(l.color, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                'You play ${l.color.label}',
-                style: theme.textTheme.titleSmall,
-              ),
-              const SizedBox(width: 12),
               Icon(Icons.alt_route, size: 16, color: theme.colorScheme.outline),
               const SizedBox(width: 4),
               Expanded(
@@ -426,44 +484,13 @@ class _DrillViewState extends State<_DrillView> {
     );
   }
 
-  Widget _sessionStats() {
-    final accuracy = d.rounds == 0
-        ? '-'
-        : '${(100 * d.cleanRounds / d.rounds).round()}%';
-    return Row(
-      children: [
-        _BigStat('Lines played', '${d.rounds}', null),
-        _BigStat('Clean', accuracy, const Color(0xFF2E9E44)),
-        _BigStat(
-          'Mistakes',
-          '${d.mistakes}',
-          d.mistakes == 0 ? null : const Color(0xFFD03030),
-        ),
-        _BigStat('Fixed', '${d.fixed.length}', const Color(0xFF2F74D0)),
-        _BigStat(
-          'Streak (best ${d.bestStreak})',
-          '${d.streak}',
-          d.streak >= 5 ? const Color(0xFFE08A00) : null,
-        ),
-      ],
-    );
-  }
-
   // ---------------------------------------------------------- side column
 
   Widget _sideColumn(BuildContext context) {
-    final mistakes = d.mistakeLines;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Section(
-          title: mistakes.isEmpty
-              ? 'Mistakes to fix'
-              : 'Mistakes to fix (${mistakes.length})',
-          child: _mistakeList(context, mistakes),
-        ),
         if (!_wide) ...[
-          const SizedBox(height: 16),
           _Section(
             title: 'By file',
             child: Column(
@@ -488,79 +515,6 @@ class _DrillViewState extends State<_DrillView> {
         ],
         const SizedBox(height: 16),
         _Section(title: 'Settings', child: _settings(context)),
-      ],
-    );
-  }
-
-  Widget _mistakeList(BuildContext context, List<DrillLine> lines) {
-    final theme = Theme.of(context);
-    if (lines.isEmpty) {
-      return Text(
-        'Nothing to fix right now.',
-        style: theme.textTheme.bodyMedium,
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final l in lines.take(10))
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                StoneIcon(l.color, size: 14),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l.doc.name,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        l.name,
-                        style: theme.textTheme.bodySmall,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD03030).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Tooltip(
-                    message: 'Mistakes made in this line',
-                    child: Text(
-                      '×${d.recordOf(l)!.mistakes}',
-                      style: const TextStyle(
-                        color: Color(0xFFD03030),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => d.play(l),
-                  child: const Text('Play'),
-                ),
-              ],
-            ),
-          ),
-        if (lines.length > 10)
-          Text(
-            '… and ${lines.length - 10} more',
-            style: theme.textTheme.bodySmall,
-          ),
       ],
     );
   }

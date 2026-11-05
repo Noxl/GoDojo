@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../model/drill.dart';
@@ -18,6 +19,55 @@ const kSupabaseKey = 'sb_publishable_vBZGsPDW-tBco1-OmwhXuA_BX4zizTp';
 /// Where the e-mails (confirmation, new password) send the user back.
 const kSiteUrl = 'https://noxl.github.io/GoDojo/';
 
+/// Where the session is kept: on the device when "Keep me signed in" is
+/// ticked (the default), else in memory only, so closing the app (or the
+/// browser tab) signs out.
+class SessionStore extends LocalStorage {
+  SessionStore()
+    : _device = SharedPreferencesLocalStorage(
+        persistSessionKey: 'sb-lfkiafzomxqcwjrdtvsj-auth-token',
+      );
+
+  static const _prefKey = 'keepSignedIn';
+  final SharedPreferencesLocalStorage _device;
+  String? _memory;
+  bool keep = true;
+
+  @override
+  Future<void> initialize() async {
+    await _device.initialize();
+    keep = (await SharedPreferences.getInstance()).getBool(_prefKey) ?? true;
+  }
+
+  Future<void> setKeep(bool value) async {
+    keep = value;
+    await (await SharedPreferences.getInstance()).setBool(_prefKey, value);
+  }
+
+  @override
+  Future<bool> hasAccessToken() async =>
+      keep ? _device.hasAccessToken() : _memory != null;
+
+  @override
+  Future<String?> accessToken() async => keep ? _device.accessToken() : _memory;
+
+  @override
+  Future<void> removePersistedSession() async {
+    _memory = null;
+    await _device.removePersistedSession();
+  }
+
+  @override
+  Future<void> persistSession(String persistSessionString) async {
+    if (keep) {
+      await _device.persistSession(persistSessionString);
+    } else {
+      _memory = persistSessionString;
+      await _device.removePersistedSession();
+    }
+  }
+}
+
 /// Keeps the library and the training progress of the signed-in user in
 /// the cloud, the same on every device. The files stay on the device too:
 /// the app works the same offline and without an account.
@@ -30,6 +80,9 @@ class CloudSync extends ChangeNotifier {
   final Future<DrillProgress> Function() progress;
 
   SupabaseClient? _client;
+
+  /// Where the session is kept ("Keep me signed in").
+  final sessionStore = SessionStore();
   StreamSubscription<AuthState>? _authSub;
   Timer? _timer;
   Timer? _debounce;
@@ -71,15 +124,28 @@ class CloudSync extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(seconds: 90), (_) => sync());
   }
 
+  /// The sync itself refreshes the library: not a change to send.
+  bool _selfRefresh = false;
+
   void _onLibraryChanged() {
-    if (_running || !signedIn) return;
+    if (_selfRefresh || !signedIn) return;
+    // During a sync: one more pass at its end.
+    if (_running) {
+      _again = true;
+      return;
+    }
     _debounce?.cancel();
     _debounce = Timer(const Duration(seconds: 3), sync);
   }
 
   // ------------------------------------------------------------ account
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> signIn(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
+    await sessionStore.setKeep(keepSignedIn);
     await _client!.auth.signInWithPassword(
       email: email.trim(),
       password: password,
@@ -88,7 +154,12 @@ class CloudSync extends ChangeNotifier {
 
   /// Creates an account. Returns false when the e-mail must be confirmed
   /// first.
-  Future<bool> signUp(String email, String password) async {
+  Future<bool> signUp(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
+    await sessionStore.setKeep(keepSignedIn);
     final r = await _client!.auth.signUp(
       email: email.trim(),
       password: password,
@@ -106,6 +177,18 @@ class CloudSync extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Stops a password change started from the account (not an e-mail).
+  void cancelPasswordChange() {
+    recovering = false;
+    notifyListeners();
+  }
+
+  /// Asks for a new password in the account dialog.
+  void startPasswordChange() {
+    recovering = true;
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     await _client!.auth.signOut();
     lastSync = null;
@@ -114,6 +197,14 @@ class CloudSync extends ChangeNotifier {
   }
 
   // ------------------------------------------------------------ sync
+  //
+  // Each device remembers, per file, what the cloud and the file looked
+  // like at its last sync. A change on one side only is copied to the
+  // other. A change on both sides keeps both versions (the most recent
+  // keeps the name). A file is only written to the cloud if the cloud
+  // still has the version this device saw: a change made meanwhile by
+  // another device is never overwritten, the next pass sees it. A file is
+  // only overwritten or deleted here if it was not changed during the sync.
 
   /// Brings the device and the cloud to the same files and progress.
   Future<void> sync() async {
@@ -126,11 +217,13 @@ class CloudSync extends ChangeNotifier {
     syncing = true;
     notifyListeners();
     try {
+      // Again when something changed meanwhile (a few times at most).
+      var passes = 0;
       do {
         _again = false;
         await _syncFiles();
         await _syncProgress();
-      } while (_again);
+      } while (_again && ++passes < 4);
       lastSync = DateTime.now();
       error = null;
     } catch (e) {
@@ -182,6 +275,44 @@ class CloudSync extends ChangeNotifier {
   static int _ms(Object? iso) =>
       DateTime.parse('$iso').toUtc().millisecondsSinceEpoch;
 
+  /// A time read from the cloud, written back as is (to the microsecond)
+  /// in a filter, with "Z" for UTC: no "+" in the address.
+  static String _exact(Object? iso) =>
+      '$iso'.replaceFirst(RegExp(r'\+00(:?00)?$'), 'Z');
+
+  /// The time of the file at [abs] now (null: no file).
+  static Future<int?> _localTime(String abs) async =>
+      (await storage.modified(abs))?.millisecondsSinceEpoch;
+
+  /// Writes a row of the cloud (a null [sgf] marks the file deleted), only
+  /// if it is still at [seen] (its `updated_at` read at the start; null:
+  /// there was no row). Returns the new time, or null when another device
+  /// changed it meanwhile.
+  Future<int?> _put(String uid, String path, String? sgf, String? seen) async {
+    final row = {
+      'sgf': sgf,
+      'deleted': sgf == null,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    final files = _client!.from('files');
+    try {
+      final back = seen == null
+          ? await files
+                .insert({...row, 'user_id': uid, 'path': path})
+                .select('updated_at')
+          : await files
+                .update(row)
+                .eq('path', path)
+                .eq('updated_at', seen)
+                .select('updated_at');
+      return back.isEmpty ? null : _ms(back.first['updated_at']);
+    } on PostgrestException catch (e) {
+      // Created meanwhile by another device.
+      if (e.code == '23505') return null;
+      rethrow;
+    }
+  }
+
   Future<void> _syncFiles() async {
     final client = _client!;
     final uid = user!.id;
@@ -189,11 +320,15 @@ class CloudSync extends ChangeNotifier {
     if (dir == null) return;
     final state = await _loadState(uid);
 
-    // The cloud: path -> (time, deleted).
+    // The cloud: path -> (time, deleted, time as stored).
     final rows = await client.from('files').select('path, updated_at, deleted');
-    final remote = <String, (int, bool)>{
+    final remote = <String, (int, bool, String)>{
       for (final r in rows)
-        r['path'] as String: (_ms(r['updated_at']), r['deleted'] == true),
+        r['path'] as String: (
+          _ms(r['updated_at']),
+          r['deleted'] == true,
+          _exact(r['updated_at']),
+        ),
     };
     // The device: path -> time.
     final local = <String, int>{
@@ -201,133 +336,130 @@ class CloudSync extends ChangeNotifier {
         _rel(f.path, dir): f.modified.millisecondsSinceEpoch,
     };
 
-    final upload = <String>{};
-    final download = <String>{};
-    final deleteHere = <String>{};
-    final deleteThere = <String>{};
-    final conflicts = <String>{};
-    for (final path in {...remote.keys, ...local.keys}) {
-      final l = local[path];
-      final r = remote[path];
-      final s = state[path];
-      final localChanged = l != null && (s == null || s['l'] != l);
-      final remoteChanged = r != null && (s == null || s['r'] != r.$1);
-      if (l != null && (r == null || r.$2)) {
-        // Only here (or deleted in the cloud).
-        if (r != null && s != null && !localChanged) {
-          deleteHere.add(path);
-        } else {
-          upload.add(path);
-        }
-      } else if (l == null && r != null && !r.$2) {
-        // Only in the cloud (or deleted here).
-        if (s != null && !remoteChanged) {
-          deleteThere.add(path);
-        } else {
-          download.add(path);
-        }
-      } else if (l != null && r != null) {
-        if (localChanged && remoteChanged) {
-          conflicts.add(path);
-        } else if (localChanged) {
-          upload.add(path);
-        } else if (remoteChanged) {
-          download.add(path);
-        }
-      }
-    }
+    final plan = SyncPlan.of(
+      remote: {for (final e in remote.entries) e.key: (e.value.$1, e.value.$2)},
+      local: local,
+      state: state,
+    );
+    final upload = plan.upload;
+    final download = plan.download;
+    final deleteHere = plan.deleteHere;
+    final deleteThere = plan.deleteThere;
+    final conflicts = plan.conflicts;
+    final next = plan.unchanged;
 
-    // Both changed: the most recent keeps the name, the other one is kept
-    // next to it, so nothing is lost.
+    // The contents to bring here.
     final texts = <String, String>{};
-    if (download.isNotEmpty || conflicts.isNotEmpty) {
-      final got = await client.from('files').select('path, sgf').inFilter(
-        'path',
-        [...download, ...conflicts],
-      );
+    final wanted = [...download, ...conflicts];
+    for (var i = 0; i < wanted.length; i += 50) {
+      final got = await client
+          .from('files')
+          .select('path, sgf')
+          .inFilter(
+            'path',
+            wanted.sublist(i, (i + 50).clamp(0, wanted.length)),
+          );
       for (final r in got) {
         texts[r['path'] as String] = r['sgf'] as String? ?? '';
       }
     }
-    var keptCopies = 0;
+
+    var changedHere = false;
+
+    // Still as listed at the start (not changed during the sync)?
+    Future<bool> untouched(String abs, String path) async =>
+        await _localTime(abs) == local[path];
+
+    // Both changed: the most recent keeps the name, the other one is kept
+    // next to it ("name (other copy).sgf"), so nothing is lost.
     for (final path in conflicts) {
       final abs = _abs(path, dir);
       final theirs = texts[path];
-      if (abs == null || theirs == null) continue;
-      final mine = await storage.read(abs);
-      if (mine == theirs) {
-        download.add(path); // Same content: just remember it.
+      if (abs == null || theirs == null || !await untouched(abs, path)) {
+        _again = true;
         continue;
       }
-      final copy = _copyPath(abs);
-      if (remote[path]!.$1 > local[path]!) {
-        await storage.write(copy, mine);
-        download.add(path);
-      } else {
-        await storage.write(copy, theirs);
-        upload.add(path);
+      final mine = await storage.read(abs);
+      final r = remote[path]!;
+      if (mine == theirs) {
+        next[path] = {'r': r.$1, 'l': local[path]};
+        continue;
       }
-      keptCopies++;
+      if (r.$1 > local[path]!) {
+        await storage.write(_copyPath(abs), mine);
+        await storage.write(abs, theirs);
+        next[path] = {'r': r.$1, 'l': await _localTime(abs)};
+      } else {
+        await storage.write(_copyPath(abs), theirs);
+        final t = await _put(uid, path, mine, r.$3);
+        if (t != null) next[path] = {'r': t, 'l': local[path]};
+      }
+      changedHere = true;
+      _again = true; // Send the copy.
     }
 
-    final now = DateTime.now().toUtc().toIso8601String();
-    final sent = <Map<String, Object?>>[
-      for (final path in upload)
-        if (_abs(path, dir) case final abs?)
-          {
-            'user_id': uid,
-            'path': path,
-            'sgf': await storage.read(abs),
-            'deleted': false,
-            'updated_at': now,
-          },
-      for (final path in deleteThere)
-        {
-          'user_id': uid,
-          'path': path,
-          'sgf': null,
-          'deleted': true,
-          'updated_at': now,
-        },
-    ];
-    final newRemote = <String, int>{
-      for (final e in remote.entries) e.key: e.value.$1,
-    };
-    // A few at a time: a request has a size limit.
-    for (var i = 0; i < sent.length; i += 50) {
-      final back = await client
-          .from('files')
-          .upsert(sent.sublist(i, (i + 50).clamp(0, sent.length)))
-          .select('path, updated_at');
-      for (final r in back) {
-        newRemote[r['path'] as String] = _ms(r['updated_at']);
+    for (final path in upload) {
+      final abs = _abs(path, dir);
+      if (abs == null) continue;
+      final text = await storage.read(abs);
+      if (!await untouched(abs, path)) {
+        _again = true; // Changed while reading: next pass.
+        if (state[path] case final s?) next[path] = s;
+        continue;
+      }
+      final t = await _put(uid, path, text, remote[path]?.$3);
+      if (t == null) {
+        _again = true; // Changed meanwhile in the cloud: next pass.
+        if (state[path] case final s?) next[path] = s;
+      } else {
+        next[path] = {'r': t, 'l': local[path]};
       }
     }
+
+    for (final path in deleteThere) {
+      final t = await _put(uid, path, null, remote[path]!.$3);
+      if (t == null) {
+        _again = true;
+        if (state[path] case final s?) next[path] = s;
+      }
+    }
+
     for (final path in download) {
       final abs = _abs(path, dir);
       final text = texts[path];
-      if (abs != null && text != null) await storage.write(abs, text);
+      if (abs == null || text == null) continue;
+      // Created or changed here during the sync: the next pass decides.
+      if (await _localTime(abs) != local[path]) {
+        _again = true;
+        if (state[path] case final s?) next[path] = s;
+        continue;
+      }
+      await storage.write(abs, text);
+      next[path] = {'r': remote[path]!.$1, 'l': await _localTime(abs)};
+      changedHere = true;
     }
+
     for (final path in deleteHere) {
       final abs = _abs(path, dir);
-      if (abs != null && await storage.exists(abs)) await storage.delete(abs);
+      if (abs == null) continue;
+      if (!await untouched(abs, path)) {
+        _again = true; // Edited here meanwhile: it goes back to the cloud.
+        if (state[path] case final s?) next[path] = s;
+        continue;
+      }
+      await storage.delete(abs);
+      changedHere = true;
     }
 
-    // Remember both sides as they are now.
-    final after = <String, int>{
-      for (final f in await storage.listSgf(dir))
-        _rel(f.path, dir): f.modified.millisecondsSinceEpoch,
-    };
-    final next = <String, Map<String, Object?>>{
-      for (final e in after.entries)
-        if (newRemote[e.key] case final r?) e.key: {'r': r, 'l': e.value},
-    };
     await _saveState(uid, next);
-
-    if (download.isNotEmpty || deleteHere.isNotEmpty || keptCopies > 0) {
-      await library.refresh();
+    if (changedHere) {
+      _selfRefresh = true;
+      try {
+        await library.refresh();
+      } finally {
+        _selfRefresh = false;
+      }
     }
-    if (keptCopies > 0) _again = true; // Send the copies too.
   }
 
   /// `name (other copy).sgf`, `name (other copy 2).sgf`…
@@ -342,30 +474,54 @@ class CloudSync extends ChangeNotifier {
     return candidate;
   }
 
+  /// The training progress: merged line by line (the most recent run of
+  /// each line wins), and written back only if the cloud did not change
+  /// meanwhile; otherwise merged again.
   Future<void> _syncProgress() async {
     final client = _client!;
     final mine = await progress();
-    final row = await client.from('progress').select('data').maybeSingle();
-    if (row?['data'] case final Map data) {
-      final theirs = DrillProgress()..readJson(jsonEncode(data));
-      if (mine.merge(theirs) > 0) {
-        await mine.save();
-        notifyListeners();
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final row = await client
+          .from('progress')
+          .select('data, updated_at')
+          .maybeSingle();
+      if (row?['data'] case final Map data) {
+        final theirs = DrillProgress()..readJson(jsonEncode(data));
+        if (mine.merge(theirs) > 0) {
+          await mine.save();
+          notifyListeners();
+        }
+        // The cloud already has every line as it is here: nothing to send.
+        int? time(LineRecord? r) => r?.last?.millisecondsSinceEpoch;
+        if (mine.records.length == theirs.records.length &&
+            mine.records.entries.every(
+              (e) => time(theirs.records[e.key]) == time(e.value),
+            )) {
+          return;
+        }
       }
-      // The cloud already has every line as it is here: nothing to send.
-      int? time(LineRecord? r) => r?.last?.millisecondsSinceEpoch;
-      if (mine.records.length == theirs.records.length &&
-          mine.records.entries.every(
-            (e) => time(theirs.records[e.key]) == time(e.value),
-          )) {
-        return;
+      final data = {
+        'data': mine.toJson(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      };
+      try {
+        final back = row == null
+            ? await client
+                  .from('progress')
+                  .insert({...data, 'user_id': user!.id})
+                  .select('user_id')
+            : await client
+                  .from('progress')
+                  .update(data)
+                  .eq('user_id', user!.id)
+                  .eq('updated_at', _exact(row['updated_at']))
+                  .select('user_id');
+        if (back.isNotEmpty) return;
+      } on PostgrestException catch (e) {
+        if (e.code != '23505') rethrow;
       }
+      // Another device wrote it meanwhile: merge its version too.
     }
-    await client.from('progress').upsert({
-      'user_id': user!.id,
-      'data': mine.toJson(),
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    });
   }
 
   @override
@@ -375,5 +531,62 @@ class CloudSync extends ChangeNotifier {
     _debounce?.cancel();
     library.removeListener(_onLibraryChanged);
     super.dispose();
+  }
+}
+
+/// What a sync does with each file, from the cloud ([remote]: path ->
+/// (time, deleted)), the device ([local]: path -> time) and what both
+/// looked like at the last sync ([state]: path -> {r, l}).
+class SyncPlan {
+  SyncPlan._();
+
+  final upload = <String>{};
+  final download = <String>{};
+  final deleteHere = <String>{};
+  final deleteThere = <String>{};
+  final conflicts = <String>{};
+
+  /// The files already the same on both sides, with their state.
+  final unchanged = <String, Map<String, Object?>>{};
+
+  factory SyncPlan.of({
+    required Map<String, (int, bool)> remote,
+    required Map<String, int> local,
+    required Map<String, Map<String, Object?>> state,
+  }) {
+    final plan = SyncPlan._();
+    for (final path in {...remote.keys, ...local.keys}) {
+      final l = local[path];
+      final r = remote[path];
+      final s = state[path];
+      final localChanged = l != null && (s == null || s['l'] != l);
+      final remoteChanged = r != null && (s == null || s['r'] != r.$1);
+      if (l != null && (r == null || r.$2)) {
+        // Only here (or deleted in the cloud since the last sync).
+        if (r != null && s != null && !localChanged) {
+          plan.deleteHere.add(path);
+        } else {
+          plan.upload.add(path);
+        }
+      } else if (l == null && r != null && !r.$2) {
+        // Only in the cloud (or deleted here since the last sync).
+        if (s != null && !remoteChanged) {
+          plan.deleteThere.add(path);
+        } else {
+          plan.download.add(path);
+        }
+      } else if (l != null && r != null) {
+        if (localChanged && remoteChanged) {
+          plan.conflicts.add(path);
+        } else if (localChanged) {
+          plan.upload.add(path);
+        } else if (remoteChanged) {
+          plan.download.add(path);
+        } else {
+          plan.unchanged[path] = {'r': r.$1, 'l': l};
+        }
+      }
+    }
+    return plan;
   }
 }

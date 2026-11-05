@@ -30,6 +30,9 @@ abstract class Storage {
   /// Writes [text] to [path], creating its folder if needed.
   Future<void> write(String path, String text);
   Future<bool> exists(String path);
+
+  /// When [path] was last written, or null when there is no such file.
+  Future<DateTime?> modified(String path);
   bool existsSync(String path);
   Future<bool> dirExists(String dir);
   Future<void> createDir(String dir);

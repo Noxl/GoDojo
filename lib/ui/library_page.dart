@@ -12,7 +12,6 @@ import '../model/opening_document.dart';
 import '../sgf/sgf_node.dart';
 import '../storage/storage.dart';
 import 'actions.dart';
-import 'account.dart';
 import 'app_logo.dart';
 import '../main.dart' show showSettings;
 import 'board_view.dart';
@@ -276,7 +275,6 @@ class _LibraryPageState extends State<LibraryPage> {
               Expanded(
                 child: Text('Library', style: theme.textTheme.headlineSmall),
               ),
-              const AccountButton(),
               IconButton(
                 tooltip: 'Settings',
                 onPressed: () => showSettings(context),

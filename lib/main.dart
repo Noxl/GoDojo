@@ -25,7 +25,13 @@ Future<void> main() async {
   await importStarterPack(state.library);
   await state.analysis.load();
   try {
-    await Supabase.initialize(url: kSupabaseUrl, publishableKey: kSupabaseKey);
+    await Supabase.initialize(
+      url: kSupabaseUrl,
+      publishableKey: kSupabaseKey,
+      authOptions: FlutterAuthClientOptions(
+        localStorage: state.cloud.sessionStore,
+      ),
+    );
     state.cloud
       ..onPasswordRecovery = () {
         final c = navigatorKey.currentContext;
@@ -104,17 +110,30 @@ class HomeShell extends StatelessWidget {
     if (!wide) {
       return Scaffold(
         body: SafeArea(child: body),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: state.section.index,
-          onDestinationSelected: select,
-          destinations: [
-            for (final d in destinations)
-              NavigationDestination(
-                icon: Icon(d.$1),
-                selectedIcon: Icon(d.$2),
-                label: d.$3,
-              ),
-          ],
+        // The account is a tab too: it opens the account window.
+        bottomNavigationBar: ListenableBuilder(
+          listenable: state.cloud,
+          builder: (context, _) {
+            final cloud = state.cloud;
+            return NavigationBar(
+              selectedIndex: state.section.index,
+              onDestinationSelected: (i) =>
+                  i < destinations.length ? select(i) : showAccount(context),
+              destinations: [
+                for (final d in destinations)
+                  NavigationDestination(
+                    icon: Icon(d.$1),
+                    selectedIcon: Icon(d.$2),
+                    label: d.$3,
+                  ),
+                if (cloud.available)
+                  NavigationDestination(
+                    icon: const AccountIcon(),
+                    label: cloud.signedIn ? 'Account' : 'Sign in',
+                  ),
+              ],
+            );
+          },
         ),
       );
     }

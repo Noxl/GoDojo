@@ -54,6 +54,38 @@ class AccountButton extends StatelessWidget {
   }
 }
 
+/// The account state as an icon: signed out, syncing, synced or failed.
+class AccountIcon extends StatelessWidget {
+  const AccountIcon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cloud = AppScope.of(context).cloud;
+    return ListenableBuilder(
+      listenable: cloud,
+      builder: (context, _) {
+        if (!cloud.signedIn) return const Icon(Icons.account_circle_outlined);
+        if (cloud.syncing) {
+          return const SizedBox(
+            width: 22,
+            height: 22,
+            child: Padding(
+              padding: EdgeInsets.all(2),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        return cloud.error != null
+            ? Icon(
+                Icons.cloud_off_outlined,
+                color: Theme.of(context).colorScheme.error,
+              )
+            : const Icon(Icons.cloud_done_outlined);
+      },
+    );
+  }
+}
+
 Future<void> showAccount(BuildContext context) => showDialog(
   context: context,
   builder: (c) => _AccountDialog(cloud: AppScope.read(context).cloud),
@@ -73,6 +105,8 @@ class _AccountDialogState extends State<_AccountDialog> {
   bool _busy = false;
   String? _error;
   String? _info;
+  bool _showPassword = false;
+  late bool _keep = cloud.sessionStore.keep;
 
   CloudSync get cloud => widget.cloud;
 
@@ -118,7 +152,7 @@ class _AccountDialogState extends State<_AccountDialog> {
       builder: (context, _) => AlertDialog(
         title: Text(
           cloud.recovering
-              ? 'New password'
+              ? (cloud.signedIn ? 'Change your password' : 'New password')
               : cloud.signedIn
               ? 'Account'
               : 'Sign in',
@@ -163,11 +197,16 @@ class _AccountDialogState extends State<_AccountDialog> {
 
   Widget _passwordField({String label = 'Password'}) => TextField(
     controller: _password,
-    obscureText: true,
+    obscureText: !_showPassword,
     autofillHints: const [AutofillHints.password],
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
+      suffixIcon: IconButton(
+        tooltip: _showPassword ? 'Hide the password' : 'Show the password',
+        onPressed: () => setState(() => _showPassword = !_showPassword),
+        icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+      ),
     ),
     onSubmitted: (_) => cloud.recovering ? _setPassword() : _signIn(),
   );
@@ -182,6 +221,17 @@ class _AccountDialogState extends State<_AccountDialog> {
     AutofillGroup(
       child: Column(
         children: [_emailField(), const SizedBox(height: 10), _passwordField()],
+      ),
+    ),
+    const SizedBox(height: 4),
+    CheckboxListTile(
+      value: _keep,
+      onChanged: (v) => setState(() => _keep = v!),
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      title: const Text('Keep me signed in'),
+      subtitle: const Text(
+        'Untick it on a shared device: closing Go Dojo signs you out.',
       ),
     ),
     Align(
@@ -236,6 +286,39 @@ class _AccountDialogState extends State<_AccountDialog> {
         'when you change a file, and every minute and a half.',
         style: theme.textTheme.bodySmall,
       ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Icon(
+            cloud.sessionStore.keep ? Icons.lock_open : Icons.timer_outlined,
+            size: 16,
+            color: theme.colorScheme.outline,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              cloud.sessionStore.keep
+                  ? 'You stay signed in on this device.'
+                  : 'You are signed out when Go Dojo is closed.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: _busy
+              ? null
+              : () {
+                  _password.clear();
+                  cloud.startPasswordChange();
+                },
+          icon: const Icon(Icons.password, size: 18),
+          label: const Text('Change the password'),
+        ),
+      ),
     ];
   }
 
@@ -252,7 +335,13 @@ class _AccountDialogState extends State<_AccountDialog> {
     );
     if (cloud.recovering) {
       return [
-        close,
+        if (cloud.signedIn)
+          TextButton(
+            onPressed: cloud.cancelPasswordChange,
+            child: const Text('Cancel'),
+          )
+        else
+          close,
         FilledButton(
           onPressed: _busy ? null : _setPassword,
           child: const Text('Save the password'),
@@ -294,13 +383,17 @@ class _AccountDialogState extends State<_AccountDialog> {
 
   void _signIn() {
     if (!_check()) return;
-    _run(() => cloud.signIn(_email.text, _password.text));
+    _run(() => cloud.signIn(_email.text, _password.text, keepSignedIn: _keep));
   }
 
   void _signUp() {
     if (!_check()) return;
     _run(() async {
-      final ready = await cloud.signUp(_email.text, _password.text);
+      final ready = await cloud.signUp(
+        _email.text,
+        _password.text,
+        keepSignedIn: _keep,
+      );
       if (!ready) {
         _info =
             'Account created. Open the e-mail we sent you to confirm it, '

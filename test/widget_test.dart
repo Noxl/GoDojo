@@ -243,7 +243,7 @@ void main() {
       await tester.pumpWidget(GoDojoApp(state: state));
       await tester.pumpAndSettle();
       expect(find.text('Global trainer'), findsOneWidget);
-      expect(find.textContaining('You play'), findsWidgets);
+      expect(find.textContaining('to play'), findsWidgets);
       expect(find.text('Low approach'), findsWidgets);
       if (width >= 1150) {
         expect(find.text('What you know'), findsOneWidget);
@@ -261,7 +261,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.textContaining('comes back in a few lines'), findsOneWidget);
-      expect(find.text('Mistakes to fix (1)'), findsOneWidget);
+      expect(d.mistakeLines, hasLength(1));
       state
         ..goTo(AppSection.library)
         ..stopDrill();

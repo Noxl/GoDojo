@@ -89,6 +89,12 @@ class IoStorage implements Storage {
   bool existsSync(String path) => File(path).existsSync();
 
   @override
+  Future<DateTime?> modified(String path) async {
+    final st = await File(path).stat();
+    return st.type == FileSystemEntityType.notFound ? null : st.modified;
+  }
+
+  @override
   Future<bool> dirExists(String dir) => Directory(dir).exists();
 
   @override

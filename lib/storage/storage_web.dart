@@ -68,6 +68,14 @@ class WebStorage implements Storage {
   bool existsSync(String path) => _prefs.containsKey(_key(path));
 
   @override
+  Future<DateTime?> modified(String path) async {
+    final v = _prefs.getString(_key(path));
+    if (v == null) return null;
+    final ms = (jsonDecode(v) as Map)['mtime'] as int? ?? 0;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  @override
   Future<bool> dirExists(String dir) async => true;
 
   @override
