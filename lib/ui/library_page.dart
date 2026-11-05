@@ -12,7 +12,9 @@ import '../model/opening_document.dart';
 import '../sgf/sgf_node.dart';
 import '../storage/storage.dart';
 import 'actions.dart';
+import 'account.dart';
 import 'app_logo.dart';
+import '../main.dart' show showSettings;
 import 'board_view.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -320,6 +322,16 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                 ],
               ),
+              // No navigation rail on a phone: the account and settings
+              // are here.
+              if (MediaQuery.sizeOf(context).width < 700) ...[
+                const AccountButton(),
+                IconButton(
+                  tooltip: 'Settings',
+                  onPressed: () => showSettings(context),
+                  icon: const Icon(Icons.settings_outlined),
+                ),
+              ],
               if (!kIsWeb && Platform.isWindows)
                 IconButton(
                   tooltip: 'Open folder in Explorer',

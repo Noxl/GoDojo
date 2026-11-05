@@ -2,11 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'analysis/katago.dart';
 import 'app_state.dart';
+import 'cloud/cloud_sync.dart';
 import 'model/starter.dart';
 import 'storage/storage.dart';
+import 'ui/account.dart';
 import 'ui/app_logo.dart';
 import 'ui/board_view.dart';
 import 'ui/editor_page.dart';
@@ -21,8 +24,22 @@ Future<void> main() async {
   await state.library.init();
   await importStarterPack(state.library);
   await state.analysis.load();
+  try {
+    await Supabase.initialize(url: kSupabaseUrl, publishableKey: kSupabaseKey);
+    state.cloud
+      ..onPasswordRecovery = () {
+        final c = navigatorKey.currentContext;
+        if (c != null) showAccount(c);
+      }
+      ..attach(Supabase.instance.client);
+  } catch (e) {
+    debugPrint('No accounts: $e');
+  }
   runApp(GoDojoApp(state: state));
 }
+
+/// To open a dialog from outside the widgets (password e-mail link).
+final navigatorKey = GlobalKey<NavigatorState>();
 
 ThemeData _theme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(
@@ -49,6 +66,7 @@ class GoDojoApp extends StatelessWidget {
         listenable: state,
         builder: (context, _) => MaterialApp(
           title: 'Go Dojo',
+          navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           theme: _theme(Brightness.light),
           darkTheme: _theme(Brightness.dark),
@@ -116,10 +134,17 @@ class HomeShell extends StatelessWidget {
                 alignment: Alignment.bottomCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: IconButton(
-                    tooltip: 'Settings',
-                    onPressed: () => showSettings(context),
-                    icon: const Icon(Icons.settings_outlined),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const AccountButton(compact: true),
+                      const SizedBox(height: 4),
+                      IconButton(
+                        tooltip: 'Settings',
+                        onPressed: () => showSettings(context),
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
+                    ],
                   ),
                 ),
               ),

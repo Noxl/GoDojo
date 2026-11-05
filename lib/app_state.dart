@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'analysis/analysis_service.dart';
+import 'cloud/cloud_sync.dart';
 import 'model/backup.dart';
 import 'model/drill.dart';
 import 'model/library.dart';
@@ -39,6 +40,13 @@ class TrainerTarget {
 class AppState extends ChangeNotifier {
   final library = Library();
   final analysis = AnalysisService();
+
+  /// The account and the sync of the library with the cloud.
+  late final cloud = CloudSync(
+    library: library,
+    progress: () async =>
+        drill?.progress ?? await DrillProgress.load(await progressPath()),
+  );
   AppSection section = AppSection.library;
   OpeningDocument? editorDoc;
   TrainerTarget? trainerTarget;
