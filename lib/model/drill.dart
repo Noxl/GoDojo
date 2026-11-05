@@ -91,9 +91,14 @@ class DrillSettings {
     this.opponentMistakes = true,
     this.showPunishment = true,
     this.autoNext = true,
+    this.docColors = const {},
   });
 
   final Set<DocumentKind> kinds;
+
+  /// Colors chosen for some files (by path), instead of the default ones.
+  /// An empty set leaves the file out of the training.
+  final Map<String, Set<Stone>> docColors;
 
   /// Colors played in joseki and tricks (an opening keeps its own color).
   final Set<Stone> colors;
@@ -111,6 +116,7 @@ class DrillSettings {
     bool? opponentMistakes,
     bool? showPunishment,
     bool? autoNext,
+    Map<String, Set<Stone>>? docColors,
   }) => DrillSettings(
     kinds: kinds ?? this.kinds,
     colors: colors ?? this.colors,
@@ -118,6 +124,7 @@ class DrillSettings {
     opponentMistakes: opponentMistakes ?? this.opponentMistakes,
     showPunishment: showPunishment ?? this.showPunishment,
     autoNext: autoNext ?? this.autoNext,
+    docColors: docColors ?? this.docColors,
   );
 
   TrainerOptions get trainerOptions => TrainerOptions(
@@ -133,6 +140,10 @@ class DrillSettings {
     'opponentMistakes': opponentMistakes,
     'showPunishment': showPunishment,
     'autoNext': autoNext,
+    'docColors': {
+      for (final e in docColors.entries)
+        e.key: e.value.map((c) => c.sgf).join(),
+    },
   };
 
   factory DrillSettings.fromJson(Map<String, Object?> j) {
@@ -152,6 +163,13 @@ class DrillSettings {
       opponentMistakes: j['opponentMistakes'] as bool? ?? d.opponentMistakes,
       showPunishment: j['showPunishment'] as bool? ?? d.showPunishment,
       autoNext: j['autoNext'] as bool? ?? d.autoNext,
+      docColors: {
+        for (final e in ((j['docColors'] as Map?) ?? const {}).entries)
+          '${e.key}': {
+            if ('${e.value}'.contains('B')) Stone.black,
+            if ('${e.value}'.contains('W')) Stone.white,
+          },
+      },
     );
   }
 }
@@ -383,29 +401,76 @@ class DrillSession extends ChangeNotifier {
 
   // ------------------------------------------------------------ lines
 
-  void _buildLines() {
-    final opts = trainerOptions ?? settings.trainerOptions;
-    final out = <DrillLine>[];
-    for (final d in docs) {
-      if (!settings.kinds.contains(d.kind)) continue;
-      final colors = d.kind.hasStartPosition
-          ? [
-              for (final c in const [Stone.black, Stone.white])
-                if (settings.colors.contains(c)) c,
-            ]
-          : [d.doc.color];
-      for (final c in colors) {
-        final ends = trainableLeaves(d.doc.root, c, opts).toList()
-          ..sort((a, b) => _order(a).compareTo(_order(b)));
-        var i = 0;
-        for (final end in ends) {
-          // The user must have something to play in the line.
-          if (!end.pathFromRoot.any((n) => n.moveColor == c)) continue;
-          out.add(DrillLine(d, end, c, ++i));
-        }
+  /// The colors the user may play in [d]: black and white for joseki and
+  /// tricks, the studied color for an opening.
+  static Set<Stone> possibleColors(DrillDoc d) => d.kind.hasStartPosition
+      ? const {Stone.black, Stone.white}
+      : {d.doc.color};
+
+  /// The colors trained in [d] by default (no choice made for it).
+  Set<Stone> defaultColors(DrillDoc d) =>
+      d.kind.hasStartPosition ? settings.colors : {d.doc.color};
+
+  /// The colors trained in [d]; empty when the file is left out.
+  Set<Stone> colorsFor(DrillDoc d) =>
+      settings.docColors[d.path]?.intersection(possibleColors(d)) ??
+      defaultColors(d);
+
+  bool isIncluded(DrillDoc d) => colorsFor(d).isNotEmpty;
+
+  /// The files of the chosen kinds, in name order.
+  List<DrillDoc> get kindDocs =>
+      docs.where((d) => settings.kinds.contains(d.kind)).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+  /// Trains [d] with [colors] (empty: leaves it out).
+  void setDocColors(DrillDoc d, Set<Stone> colors) {
+    final map = {...settings.docColors};
+    if (colors.length == defaultColors(d).length &&
+        colors.containsAll(defaultColors(d))) {
+      map.remove(d.path);
+    } else {
+      map[d.path] = colors;
+    }
+    updateSettings(settings.copyWith(docColors: map));
+  }
+
+  /// Includes every file with its default colors, or leaves them all out.
+  void setAllDocs(bool on) {
+    final map = {...settings.docColors};
+    for (final d in kindDocs) {
+      if (on) {
+        if (!isIncluded(d)) map.remove(d.path);
+      } else {
+        map[d.path] = const {};
       }
     }
-    lines = out;
+    updateSettings(settings.copyWith(docColors: map));
+  }
+
+  /// The lines of [d] played with [colors].
+  List<DrillLine> _linesOf(DrillDoc d, Iterable<Stone> colors) {
+    final opts = trainerOptions ?? settings.trainerOptions;
+    final out = <DrillLine>[];
+    for (final c in const [Stone.black, Stone.white]) {
+      if (!colors.contains(c)) continue;
+      final ends = trainableLeaves(d.doc.root, c, opts).toList()
+        ..sort((a, b) => _order(a).compareTo(_order(b)));
+      var i = 0;
+      for (final end in ends) {
+        // The user must have something to play in the line.
+        if (!end.pathFromRoot.any((n) => n.moveColor == c)) continue;
+        out.add(DrillLine(d, end, c, ++i));
+      }
+    }
+    return out;
+  }
+
+  void _buildLines() {
+    lines = [
+      for (final d in docs)
+        if (settings.kinds.contains(d.kind)) ..._linesOf(d, colorsFor(d)),
+    ];
     if (only != null && !lines.any((l) => l.doc == only)) only = null;
     _retries.removeWhere((k, _) => !lines.any((l) => l.key == k));
   }
@@ -460,6 +525,9 @@ class DrillSession extends ChangeNotifier {
 
   /// Files whose lines are all known.
   int get knownDocs => docMastery.where((m) => m.$2 == m.$3).length;
+
+  /// Files being trained.
+  int get includedDocs => kindDocs.where(isIncluded).length;
 
   // ------------------------------------------------------------ choice
 
@@ -675,8 +743,14 @@ class DrillSession extends ChangeNotifier {
 
   /// Progress of each file, in name order.
   List<DocStats> get docStats {
-    final out = <DrillDoc, DocStats>{};
-    for (final l in lines) {
+    final out = <DrillDoc, DocStats>{for (final d in kindDocs) d: DocStats(d)};
+    final all = [
+      ...lines,
+      // A file left out still shows what you know of it.
+      for (final d in kindDocs)
+        if (!isIncluded(d)) ..._linesOf(d, defaultColors(d)),
+    ];
+    for (final l in all) {
       final st = out[l.doc] ??= DocStats(l.doc);
       final r = recordOf(l);
       st.total++;

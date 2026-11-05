@@ -182,6 +182,40 @@ void main() {
     expect(d.only, isNull);
   });
 
+  test('files and colors chosen one by one', () {
+    final d = _drill()..next();
+    final a = d.docs.firstWhere((x) => x.name == 'A');
+    final b = d.docs.firstWhere((x) => x.name == 'B');
+    d.setDocColors(b, const {});
+    expect(d.isIncluded(b), isFalse);
+    expect(d.lines.every((l) => l.doc == a), isTrue);
+    expect(d.lines.length, 4);
+    // A file left out still shows its progress.
+    expect(d.docStats.map((s) => s.doc), containsAll([a, b]));
+
+    d.setDocColors(a, const {Stone.white});
+    expect(d.lines.length, 2);
+    expect(d.lines.every((l) => l.color == Stone.white), isTrue);
+    for (var i = 0; i < 4; i++) {
+      d.next();
+      expect(d.line!.doc, a);
+      expect(d.line!.color, Stone.white);
+    }
+
+    // Kept in the saved settings.
+    final copy = DrillSettings.fromJson(d.settings.toJson());
+    expect(copy.docColors[b.path], isEmpty);
+    expect(copy.docColors[a.path], {Stone.white});
+
+    d.setAllDocs(false);
+    expect(d.lines, isEmpty);
+    d.next();
+    expect(d.line, isNull);
+    d.setAllDocs(true);
+    // Every file back with the default colors (both).
+    expect(d.lines.length, 8);
+  });
+
   test('progress is saved and loaded', () async {
     final dir = await Directory.systemTemp.createTemp('drill');
     final file = '${dir.path}/progress.json';

@@ -305,6 +305,8 @@ class _DrillViewState extends State<_DrillView> {
       child: Text(
         d.docs.isEmpty
             ? 'Your library is empty. Create some joseki first.'
+            : d.includedDocs == 0
+            ? 'No file selected. Tick the files to train in the list.'
             : 'No line to train in your $kinds. Change the settings, or add '
                   'moves for the color you play.',
         style: theme.textTheme.bodyLarge,
@@ -464,7 +466,21 @@ class _DrillViewState extends State<_DrillView> {
             title: 'By file',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _docTiles(context),
+              children: [
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => d.setAllDocs(true),
+                      child: const Text('All'),
+                    ),
+                    TextButton(
+                      onPressed: () => d.setAllDocs(false),
+                      child: const Text('None'),
+                    ),
+                  ],
+                ),
+                ..._docTiles(context),
+              ],
             ),
           ),
         ],
@@ -612,14 +628,23 @@ class _DrillViewState extends State<_DrillView> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 const SizedBox(height: 10),
+                Text(
+                  '${d.includedDocs} / ${d.kindDocs.length} files trained. '
+                  'Tick the files and the colors to train; click a file to '
+                  'train only it.',
+                  style: theme.textTheme.bodySmall,
+                ),
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Click a file to train only it.',
-                        style: theme.textTheme.bodySmall,
-                      ),
+                    TextButton(
+                      onPressed: () => d.setAllDocs(true),
+                      child: const Text('All'),
                     ),
+                    TextButton(
+                      onPressed: () => d.setAllDocs(false),
+                      child: const Text('None'),
+                    ),
+                    const Spacer(),
                     TextButton.icon(
                       onPressed: () =>
                           setState(() => _byProgress = !_byProgress),
@@ -719,6 +744,15 @@ class _DrillViewState extends State<_DrillView> {
     final color = _learnedColor(st.learned, theme);
     final pct = (100 * st.learned).round();
     final small = theme.textTheme.bodySmall;
+    final colors = d.colorsFor(doc);
+    final included = colors.isNotEmpty;
+    // Back in the training with its usual colors (or both).
+    void include() => d.setDocColors(
+      doc,
+      d.defaultColors(doc).isEmpty
+          ? DrillSession.possibleColors(doc)
+          : d.defaultColors(doc),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
@@ -735,87 +769,130 @@ class _DrillViewState extends State<_DrillView> {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          onTap: () => d.focusDoc(selected ? null : doc),
+          onTap: included ? () => d.focusDoc(selected ? null : doc) : include,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    KindIcon(
-                      kind: doc.kind,
-                      color: doc.kind.hasStartPosition ? null : doc.doc.color,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        doc.name,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+            padding: const EdgeInsets.fromLTRB(2, 4, 10, 8),
+            child: Opacity(
+              opacity: included ? 1 : 0.5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Tooltip(
+                        message: included
+                            ? 'Leave this file out of the training'
+                            : 'Train this file',
+                        child: Checkbox(
+                          value: included,
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          onChanged: (v) =>
+                              v! ? include() : d.setDocColors(doc, const {}),
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    if (playing)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Tooltip(
-                          message: 'Being played',
-                          child: Icon(
-                            Icons.play_arrow,
-                            size: 18,
-                            color: theme.colorScheme.primary,
+                      KindIcon(
+                        kind: doc.kind,
+                        color: doc.kind.hasStartPosition ? null : doc.doc.color,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          doc.name,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (playing)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Tooltip(
+                            message: 'Being played',
+                            child: Icon(
+                              Icons.play_arrow,
+                              size: 18,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                         ),
-                      ),
-                    if (st.allKnown)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 4),
-                        child: Icon(
-                          Icons.verified,
-                          size: 18,
-                          color: Color(0xFF2E9E44),
+                      if (st.allKnown)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Icon(
+                            Icons.verified,
+                            size: 18,
+                            color: Color(0xFF2E9E44),
+                          ),
+                        ),
+                      Text(
+                        '$pct%',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: color,
                         ),
                       ),
-                    Text(
-                      '$pct%',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: LinearProgressIndicator(
+                      value: st.learned,
+                      minHeight: 6,
+                      color: color,
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                LinearProgressIndicator(
-                  value: st.learned,
-                  minHeight: 6,
-                  color: color,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    Text('${st.known}/${st.total} lines known', style: small),
-                    if (st.failing > 0)
-                      Text(
-                        '${st.failing} to fix',
-                        style: small?.copyWith(
-                          color: const Color(0xFFD03030),
-                          fontWeight: FontWeight.w700,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          children: [
+                            Text(
+                              '${st.known}/${st.total} lines known',
+                              style: small,
+                            ),
+                            if (st.failing > 0)
+                              Text(
+                                '${st.failing} to fix',
+                                style: small?.copyWith(
+                                  color: const Color(0xFFD03030),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            if (st.fresh > 0)
+                              Text(
+                                '${st.fresh} new',
+                                style: small?.copyWith(
+                                  color: const Color(0xFF2F74D0),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                    if (st.fresh > 0)
-                      Text(
-                        '${st.fresh} new',
-                        style: small?.copyWith(color: const Color(0xFF2F74D0)),
-                      ),
-                  ],
-                ),
-              ],
+                      // Joseki and tricks: the colors trained in this file.
+                      if (doc.kind.hasStartPosition)
+                        for (final c in const [Stone.black, Stone.white])
+                          _ColorToggle(
+                            stone: c,
+                            selected: colors.contains(c),
+                            onTap: () => d.setDocColors(
+                              doc,
+                              colors.contains(c)
+                                  ? ({...colors}..remove(c))
+                                  : {...colors, c},
+                            ),
+                          ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -859,7 +936,7 @@ class _DrillViewState extends State<_DrillView> {
               ),
           ],
         ),
-        label('Play joseki and tricks as'),
+        label('Colors for every joseki and trick'),
         SegmentedButton<String>(
           segments: const [
             ButtonSegment(
@@ -882,8 +959,19 @@ class _DrillViewState extends State<_DrillView> {
                 if (v.first.contains('B')) Stone.black,
                 if (v.first.contains('W')) Stone.white,
               },
+              // Applies to every file; the ones left out stay out.
+              docColors: {
+                for (final e in st.docColors.entries)
+                  if (e.value.isEmpty) e.key: e.value,
+              },
             ),
           ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Sets every file. Change the colors of one file with its stones '
+          'in the list.',
+          style: theme.textTheme.bodySmall,
         ),
         label('Choose the lines'),
         SegmentedButton<DrillFocus>(
@@ -1148,4 +1236,47 @@ Future<void> _editAt(
   }
   doc.goTo(target);
   state.openInEditor(doc);
+}
+
+/// A stone to tick: the file is trained with this color.
+class _ColorToggle extends StatelessWidget {
+  const _ColorToggle({
+    required this.stone,
+    required this.selected,
+    required this.onTap,
+  });
+  final Stone stone;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ring = Theme.of(context).colorScheme.primary;
+    return Tooltip(
+      message: '${selected ? 'Stop training' : 'Train'} as ${stone.label}',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 16,
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: Container(
+            width: 22,
+            height: 22,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: selected ? ring : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: Opacity(
+              opacity: selected ? 1 : 0.3,
+              child: StoneIcon(stone, size: 14),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
