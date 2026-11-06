@@ -1,0 +1,44 @@
+(;GM[1]FF[4]CA[UTF-8]AP[GoDojo:1.0]SZ[19]GN[44 approach]GK[joseki]PL[W]AB[pd][nc]AW[qf]
+
+(;W[rd]
+(;B[qc];W[qi])
+(;B[];W[qc];B[kc])
+(;B[qh];W[qc];B[qe];W[re];B[pf];W[pg];B[qg];W[rf]
+(;B[og]N[Ladder])
+(;B[of]N[No ladder])))
+(;W[qd];B[qc];W[rc]
+(;B[rb]N[Double Hane];W[re];B[sc];W[pe];B[rd];W[od];B[pc])
+(;B[qb]N[Drop down];W[pe];B[rd];W[qe];B[rb];W[])
+(;B[pc]N[Connect];W[re])
+(;B[pb]N[Tiger mouth];W[re];B[rb];W[])
+(;B[qe]N[Atari];W[rd]
+(;B[re]N[Push]C[Black wants to take the outside]
+;W[pe];B[rf];W[pc];B[od];W[pb];B[qg];W[pf]
+(;B[pg]N[Old variation];W[ne]
+(;B[oe]BM[1];W[of];B[nf];W[og];B[me];W[pi])
+(;B[ng];W[nf];B[mg]))
+(;B[ph]
+(;W[pg];B[qh];W[oh])
+(;W[ne]BM[1];B[oe];W[of];B[nf];W[og];B[me];W[ng];B[mf])
+(;W[nf];B[ne];W[pg];B[qh];W[oh];B[oi];W[nh];B[ni];W[lh])))
+(;B[pe]N[Connect];W[re]
+(;B[pf];W[qg];B[])
+(;B[qb];W[pf];B[rg]
+(;W[rf])
+(;W[qh];B[rh];W[pc]
+(;B[oc]BM[1];W[rb];B[pb];W[qi];B[ri];W[qj];B[rf];W[rj];B[ra];W[qg];B[sb])
+(;B[pb];W[qj]
+(;B[qg];W[od]
+(;B[oe];W[ph]
+(;B[pg]BM[1];W[of];B[ne];W[og];B[rf];W[ri];B[rb];W[sf])
+(;B[rf];W[ri];B[rb];W[pg]))
+(;B[oc];W[oe];B[pc];W[rf];B[qi];W[rj];B[oh];W[oj];B[mh];W[mf]))
+(;B[rf]BM[1];W[ri];B[qg];W[od];B[oe];W[ph])
+(;B[ri];W[rf];B[qi];W[pi];B[pj];W[qk];B[ph];W[oi];B[oh];W[ni];B[qg];W[nh];B[og];W[od]
+(;B[oe]BM[1];W[of];B[ne];W[ng])
+(;B[oc];W[oe];B[pc];W[of];B[ng];W[mg];B[nf];W[md]))))))
+(;B[pf];W[re];B[pe];W[qg])))
+(;W[qc]N[33]C[White really wants the corner]
+;B[qd];W[rd]
+(;B[re];W[rc];B[qe];W[ob];B[nb];W[oc];B[od];W[pc];B[me])
+(;B[pc]BM[1];W[rb];B[qb];W[rc])))

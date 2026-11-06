@@ -2,6 +2,8 @@
 
 Learn your Go openings (josekis, fusekis, pet openings) from SGF files.
 
+Go Dojo is free and open source, made by a Go player for Go players: no ads, no subscription, nothing to buy, and your data is never sold. Web version: https://noxl.github.io/GoDojo/
+
 - **Library**: a folder of `.sgf` files (default `Documents\Go Dojo Library`, scanned recursively). Search, filter by color and board size, import, rename, duplicate or delete.
 - **Editor**: build the opening tree for 9×9, 13×13 or 19×19, studied as Black or White.
   - Tools: play moves, add black or white stones, erase, triangle, square, circle, X, letter and number labels, tenuki (key T: the move is played elsewhere, no stone on this board; stored as a pass).
@@ -12,6 +14,7 @@ Learn your Go openings (josekis, fusekis, pet openings) from SGF files.
   - KataGo analysis (button "Analyze" or the key set in Settings, "&" by default): best moves on the board with their score loss (hover one to see the sequence), winrate and score, loss of the selected move with a one-click Bad mark, and "Add top moves" to add the engine's suggestions as variations.
   - Undo/redo; keyboard: ← → (back/forward), ↑ ↓ (variations), Home/End, Ctrl+S, Ctrl+Z, Ctrl+Y.
 - **Trainer**: you play your color, the app answers with moves from the tree.
+  - The board is zoomed on the part the joseki uses, in all its lines (the whole board for an opening).
   - When you play a move marked Bad, its punishment is played automatically, then you are asked for the right move; moves not in the tree are flagged.
   - Tenuki button (key T) when the tree expects you to play elsewhere.
   - Opponent moves marked Bad are played sometimes (adjustable rate), so you practise punishing them.
@@ -28,7 +31,7 @@ The same app runs in a browser (phone, tablet, PC), without KataGo.
 
 - Files and progress are kept **in the browser**. On iPhone, add the site to the home screen (Safari > Share > Add to Home Screen) so Safari keeps the data.
 - Library > backup button: **Back up library and progress** downloads one JSON file; **Restore a backup** reads it. This also moves your SGF files and progress between the PC and the web.
-- **Starter pack**: `.sgf` files put in `assets/starter/` are added to the library of every browser that opens the site (once each). The PC version ignores them.
+- **Starter files**: the `.sgf` files of `assets/starter/` (the joseki "44 approach") are added to the library of every browser that opens the site (once each), and to every new account at its first sync (PC and web).
 
 Publishing on GitHub Pages: push to the `main` branch of a GitHub repository, then in the repository Settings > Pages, set Source to **GitHub Actions**. The workflow `.github/workflows/pages.yml` tests, builds and publishes the site at `https://<user>.github.io/<repository>/` after every push.
 

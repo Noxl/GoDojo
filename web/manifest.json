@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#1F2E46",
     "theme_color": "#1F2E46",
-    "description": "Learn Go openings, joseki and tricks.",
+    "description": "Free, non-commercial app to learn and drill Go openings and joseki.",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

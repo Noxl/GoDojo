@@ -1,7 +1,12 @@
-# Starter pack (web version)
+# Starter files
 
-Put `.sgf` files here (subfolders allowed), then push: the web version adds
-them to the library of every browser that opens it, once. Deleting a file
-here does not remove it from a browser that already has it.
+The `.sgf` files here (subfolders allowed) are given to everyone:
 
-The PC version ignores this folder.
+- **New account**: the first sync of an account that has nothing in it yet
+  adds them to the library (PC and web), so there is something to train
+  right away.
+- **Web visitor**: the web version adds them to the library of every browser
+  that opens it, once.
+
+A file is never added over a file of the same name, and deleting it from a
+library does not bring it back (except on a new account).

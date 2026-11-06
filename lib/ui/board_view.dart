@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../go/board.dart';
+import '../go/board_region.dart';
 import '../go/point.dart';
 import '../go/stone.dart';
 import '../model/annotations.dart';
@@ -74,7 +75,15 @@ class BoardView extends StatefulWidget {
     this.onTap,
     this.showCoordinates = true,
     this.style = BoardStyle.wood,
+    this.region,
   });
+
+  /// The part of the board shown, zoomed in (null: the whole board).
+  final BoardRegion? region;
+
+  /// Width / height of a board showing [region] (null: the whole board).
+  static double aspect(BoardRegion? region, {bool coordinates = true}) =>
+      region == null ? 1 : _Geometry.ratio(region, coordinates);
 
   final BoardStyle style;
 
@@ -109,13 +118,18 @@ class _BoardViewState extends State<BoardView> {
 
   @override
   Widget build(BuildContext context) {
+    final region =
+        widget.region ??
+        BoardRegion(0, 0, widget.board.size - 1, widget.board.size - 1);
+    final ratio = _Geometry.ratio(region, widget.showCoordinates);
     return AspectRatio(
-      aspectRatio: 1,
+      aspectRatio: ratio,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final geo = _Geometry(
-            constraints.biggest.shortestSide,
+            constraints.biggest,
             widget.board.size,
+            region,
             widget.showCoordinates,
           );
           return MouseRegion(
@@ -160,7 +174,7 @@ class _BoardViewState extends State<BoardView> {
                 onVerticalDragStart: widget.onTap == null ? null : (_) {},
                 onHorizontalDragStart: widget.onTap == null ? null : (_) {},
                 child: CustomPaint(
-                  size: Size.square(geo.extent),
+                  size: geo.extent,
                   painter: _BoardPainter(widget, geo, _hover, _press),
                 ),
               ),
@@ -177,25 +191,56 @@ class _BoardViewState extends State<BoardView> {
 }
 
 class _Geometry {
-  _Geometry(this.extent, this.size, bool coords) {
-    // Space for coordinates on all sides when enabled.
-    final slots = size - 1 + (coords ? 2.6 : 1.2);
-    cell = extent / slots;
-    origin = (extent - cell * (size - 1)) / 2;
+  _Geometry(Size space, this.size, this.region, bool coords) {
+    final m = _margin(coords);
+    cell = math.min(
+      space.width / (region.columns - 1 + 2 * m),
+      space.height / (region.rows - 1 + 2 * m),
+    );
+    extent = Size(
+      cell * (region.columns - 1 + 2 * m),
+      cell * (region.rows - 1 + 2 * m),
+    );
+    origin = Offset(m * cell, m * cell);
+    // The lines stop at the edge of the board, or go on a little where the
+    // board goes on (a zoomed view).
+    final more = cell * 0.5;
+    left = center(Point(region.x0, 0)).dx - (region.x0 > 0 ? more : 0);
+    right = center(Point(region.x1, 0)).dx + (region.x1 < size - 1 ? more : 0);
+    top = center(Point(0, region.y0)).dy - (region.y0 > 0 ? more : 0);
+    bottom = center(Point(0, region.y1)).dy + (region.y1 < size - 1 ? more : 0);
   }
 
-  final double extent;
-  final int size;
-  late final double cell;
-  late final double origin;
+  /// Room around the lines, in cells: the coordinates are in it.
+  static double _margin(bool coords) => coords ? 1.3 : 0.6;
 
-  Offset center(Point p) => Offset(origin + p.x * cell, origin + p.y * cell);
+  /// Width / height of a view of [region].
+  static double ratio(BoardRegion region, bool coords) {
+    final m = _margin(coords);
+    return (region.columns - 1 + 2 * m) / (region.rows - 1 + 2 * m);
+  }
+
+  final int size;
+  final BoardRegion region;
+  late final Size extent;
+  late final double cell;
+
+  /// The center of the top left point shown.
+  late final Offset origin;
+
+  /// Where the lines start and end.
+  late final double left, right, top, bottom;
+
+  Offset center(Point p) => Offset(
+    origin.dx + (p.x - region.x0) * cell,
+    origin.dy + (p.y - region.y0) * cell,
+  );
 
   Point? pointAt(Offset o) {
-    final x = ((o.dx - origin) / cell).round();
-    final y = ((o.dy - origin) / cell).round();
+    final x = ((o.dx - origin.dx) / cell).round() + region.x0;
+    final y = ((o.dy - origin.dy) / cell).round() + region.y0;
     final p = Point(x, y);
-    return p.isOnBoard(size) ? p : null;
+    return p.isOnBoard(size) && region.contains(p) ? p : null;
   }
 }
 
@@ -219,6 +264,9 @@ class _BoardPainter extends CustomPainter {
     final n = board.size;
     final rect = Offset.zero & size;
     final r = g.cell / 2 * 0.96;
+    final region = g.region;
+    canvas.save();
+    canvas.clipRRect(RRect.fromRectAndRadius(rect, const Radius.circular(6)));
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(6)),
@@ -234,19 +282,37 @@ class _BoardPainter extends CustomPainter {
     final line = Paint()
       ..color = w.style.line
       ..strokeWidth = math.max(1, g.cell / 30);
-    final start = g.origin, end = g.origin + g.cell * (n - 1);
-    for (var i = 0; i < n; i++) {
-      final v = g.origin + i * g.cell;
-      canvas.drawLine(Offset(start, v), Offset(end, v), line);
-      canvas.drawLine(Offset(v, start), Offset(v, end), line);
+    for (var y = region.y0; y <= region.y1; y++) {
+      final v = g.center(Point(0, y)).dy;
+      canvas.drawLine(Offset(g.left, v), Offset(g.right, v), line);
     }
+    for (var x = region.x0; x <= region.x1; x++) {
+      final v = g.center(Point(x, 0)).dx;
+      canvas.drawLine(Offset(v, g.top), Offset(v, g.bottom), line);
+    }
+    // The edges of the board that are shown: thicker.
     final border = Paint()
       ..color = line.color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = line.strokeWidth * 1.8;
-    canvas.drawRect(Rect.fromLTRB(start, start, end, end), border);
+      ..strokeWidth = line.strokeWidth * 1.8
+      ..strokeCap = StrokeCap.square;
+    final tl = g.center(Point(region.x0, region.y0));
+    final br = g.center(Point(region.x1, region.y1));
+    if (region.y0 == 0) {
+      canvas.drawLine(Offset(g.left, tl.dy), Offset(g.right, tl.dy), border);
+    }
+    if (region.y1 == n - 1) {
+      canvas.drawLine(Offset(g.left, br.dy), Offset(g.right, br.dy), border);
+    }
+    if (region.x0 == 0) {
+      canvas.drawLine(Offset(tl.dx, g.top), Offset(tl.dx, g.bottom), border);
+    }
+    if (region.x1 == n - 1) {
+      canvas.drawLine(Offset(br.dx, g.top), Offset(br.dx, g.bottom), border);
+    }
     for (final s in board.starPoints) {
-      canvas.drawCircle(g.center(s), g.cell * 0.11, line);
+      if (region.contains(s)) {
+        canvas.drawCircle(g.center(s), g.cell * 0.11, line);
+      }
     }
 
     // Coordinates.
@@ -257,14 +323,17 @@ class _BoardPainter extends CustomPainter {
         fontWeight: FontWeight.w600,
       );
       final off = g.cell * 0.85;
-      for (var i = 0; i < n; i++) {
-        final v = g.origin + i * g.cell;
-        final letter = _goLetters[i];
-        final number = '${n - i}';
-        _text(canvas, letter, Offset(v, start - off), style);
-        _text(canvas, letter, Offset(v, end + off), style);
-        _text(canvas, number, Offset(start - off, v), style);
-        _text(canvas, number, Offset(end + off, v), style);
+      final tl = g.center(Point(region.x0, region.y0));
+      final br = g.center(Point(region.x1, region.y1));
+      for (var i = region.x0; i <= region.x1; i++) {
+        final v = g.center(Point(i, 0)).dx;
+        _text(canvas, _goLetters[i], Offset(v, tl.dy - off), style);
+        _text(canvas, _goLetters[i], Offset(v, br.dy + off), style);
+      }
+      for (var i = region.y0; i <= region.y1; i++) {
+        final v = g.center(Point(0, i)).dy;
+        _text(canvas, '${n - i}', Offset(tl.dx - off, v), style);
+        _text(canvas, '${n - i}', Offset(br.dx + off, v), style);
       }
     }
 
@@ -278,7 +347,9 @@ class _BoardPainter extends CustomPainter {
     // Stones.
     for (final p in board.points) {
       final s = board[p];
-      if (s != Stone.empty) _stone(canvas, g.center(p), r, s, 1);
+      if (s != Stone.empty && region.contains(p)) {
+        _stone(canvas, g.center(p), r, s, 1);
+      }
     }
 
     // Hover preview (under the variation letters).
@@ -288,8 +359,8 @@ class _BoardPainter extends CustomPainter {
       final cross = Paint()
         ..color = const Color(0xFFE5393A)
         ..strokeWidth = math.max(2, g.cell * 0.09);
-      canvas.drawLine(Offset(start, c.dy), Offset(end, c.dy), cross);
-      canvas.drawLine(Offset(c.dx, start), Offset(c.dx, end), cross);
+      canvas.drawLine(Offset(g.left, c.dy), Offset(g.right, c.dy), cross);
+      canvas.drawLine(Offset(c.dx, g.top), Offset(c.dx, g.bottom), cross);
       if (hs != null && board[p] == Stone.empty) {
         _stone(canvas, c, r, hs, 0.6);
       }
@@ -492,6 +563,7 @@ class _BoardPainter extends CustomPainter {
         width: g.cell * 0.12,
       );
     }
+    canvas.restore();
   }
 
   Color _contrast(Stone s) =>

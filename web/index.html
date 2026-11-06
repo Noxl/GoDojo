@@ -18,7 +18,17 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Learn Go openings, joseki and tricks.">
+  <meta name="description" content="Free, non-commercial app to learn and drill Go (baduk, weiqi) openings and joseki from SGF files. No ads, no subscription.">
+  <meta name="theme-color" content="#1F2E46">
+
+  <!-- Link previews (messages, social networks) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Go Dojo">
+  <meta property="og:title" content="Go Dojo: train your Go openings and joseki">
+  <meta property="og:description" content="Free, non-commercial app to learn and drill Go (baduk, weiqi) openings and joseki from SGF files. No ads, no subscription.">
+  <meta property="og:url" content="https://noxl.github.io/GoDojo/">
+  <meta property="og:image" content="https://noxl.github.io/GoDojo/icons/Icon-512.png">
+  <meta name="twitter:card" content="summary">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -29,7 +39,7 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Go Dojo</title>
+  <title>Go Dojo: train your Go openings and joseki</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -41,6 +51,33 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #1F2E46; }
+    #splash {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      color: #E9E4D8; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      text-align: center; padding: 24px; box-sizing: border-box;
+    }
+    #splash img { width: 96px; height: 96px; }
+    #splash h1 { margin: 0; font-size: 26px; font-weight: 600; }
+    #splash p { margin: 0; max-width: 420px; opacity: .8; }
+    #splash small { opacity: .55; }
+  </style>
+  <div id="splash">
+    <img src="icons/Icon-192.png" alt="">
+    <h1>Go Dojo</h1>
+    <p>Train your Go openings and joseki. Free and non-commercial: no ads, no subscription, nothing to buy.</p>
+    <small>Loading…</small>
+    <noscript><p>Go Dojo needs JavaScript to run.</p></noscript>
+  </div>
+  <script>
+    // The app is drawn: the loading screen goes.
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (s) s.remove();
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

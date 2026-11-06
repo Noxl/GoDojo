@@ -13,6 +13,7 @@ import '../sgf/sgf_node.dart';
 import '../storage/storage.dart';
 import 'actions.dart';
 import 'app_logo.dart';
+import 'free_note.dart';
 import '../main.dart' show showSettings;
 import 'board_view.dart';
 
@@ -185,6 +186,12 @@ class _LibraryPageState extends State<LibraryPage> {
         items.add(_tile(context, lib, e, shown));
       }
     }
+    items.add(
+      const Padding(
+        padding: EdgeInsets.fromLTRB(24, 32, 24, 8),
+        child: FreeNote(),
+      ),
+    );
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 16),
       itemCount: items.length,

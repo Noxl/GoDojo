@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../model/drill.dart';
 import '../model/library.dart';
+import '../model/starter.dart';
 import '../storage/storage.dart';
 
 /// The Supabase project keeping the accounts and their files. The key is
@@ -322,6 +323,12 @@ class CloudSync extends ChangeNotifier {
 
     // The cloud: path -> (time, deleted, time as stored).
     final rows = await client.from('files').select('path, updated_at, deleted');
+    // A new account (nothing in it, never synced here): it starts with the
+    // starter files, sent with the rest below.
+    var changedHere = false;
+    if (rows.isEmpty && state.isEmpty && await addStarterFiles(dir) > 0) {
+      changedHere = true;
+    }
     final remote = <String, (int, bool, String)>{
       for (final r in rows)
         r['path'] as String: (
@@ -363,8 +370,6 @@ class CloudSync extends ChangeNotifier {
         texts[r['path'] as String] = r['sgf'] as String? ?? '';
       }
     }
-
-    var changedHere = false;
 
     // Still as listed at the start (not changed during the sync)?
     Future<bool> untouched(String abs, String path) async =>

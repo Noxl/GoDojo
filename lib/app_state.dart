@@ -63,6 +63,9 @@ class AppState extends ChangeNotifier {
   /// Key toggling the KataGo analysis in the editor.
   String analysisKey = '&';
 
+  /// The trainers zoom the board on the part the joseki uses.
+  bool zoomTraining = true;
+
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     themeMode =
@@ -71,6 +74,13 @@ class AppState extends ChangeNotifier {
         BoardStyle.values.asNameMap()[prefs.getString('boardStyle')] ??
         boardStyle;
     analysisKey = prefs.getString('analysisKey') ?? analysisKey;
+    zoomTraining = prefs.getBool('zoomTraining') ?? zoomTraining;
+  }
+
+  Future<void> setZoomTraining(bool on) async {
+    zoomTraining = on;
+    notifyListeners();
+    await (await SharedPreferences.getInstance()).setBool('zoomTraining', on);
   }
 
   Future<void> setThemeMode(ThemeMode m) async {

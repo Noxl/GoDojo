@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../analysis/analysis_service.dart';
 import '../app_state.dart';
+import '../go/board_region.dart';
 import '../go/point.dart';
 import '../go/stone.dart';
 import '../model/annotations.dart';
@@ -640,7 +641,10 @@ class _TrainerState extends State<_Trainer> {
                 );
               }
               if (c.maxWidth >= 900) {
-                final side = c.maxHeight.clamp(320.0, c.maxWidth * 0.62);
+                final side = (c.maxHeight * BoardView.aspect(_region)).clamp(
+                  320.0,
+                  c.maxWidth * 0.62,
+                );
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -678,6 +682,11 @@ class _TrainerState extends State<_Trainer> {
     );
   }
 
+  /// The part of the board the joseki uses, in all its lines.
+  BoardRegion? get _region => AppScope.read(context).zoomTraining
+      ? josekiRegion(widget.doc.root, widget.doc.size, at: _session.current)
+      : null;
+
   Widget _board() {
     final s = _session;
     final cur = s.current;
@@ -691,6 +700,7 @@ class _TrainerState extends State<_Trainer> {
     }
     return BoardView(
       style: AppScope.of(context).boardStyle,
+      region: _region,
       board: s.board,
       lastMove: cur.movePoint(size),
       markup: markup,

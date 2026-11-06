@@ -11,6 +11,7 @@ import 'model/starter.dart';
 import 'storage/storage.dart';
 import 'ui/account.dart';
 import 'ui/app_logo.dart';
+import 'ui/free_note.dart';
 import 'ui/board_view.dart';
 import 'ui/editor_page.dart';
 import 'ui/library_page.dart';
@@ -225,12 +226,26 @@ Future<void> showSettings(BuildContext context) {
                     ),
                 ],
               ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Zoom on the joseki when training'),
+                subtitle: const Text(
+                  'The board shows only the part the joseki uses.',
+                ),
+                value: state.zoomTraining,
+                onChanged: state.setZoomTraining,
+              ),
               if (!kIsWeb) ...[
                 const SizedBox(height: 20),
                 const _KataGoSettings(),
                 const SizedBox(height: 12),
                 _analysisKeyRow(state),
               ],
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              const FreeNote(center: false),
             ],
           ),
         ),

@@ -95,7 +95,10 @@ class _DrillViewState extends State<_DrillView> {
         );
       }
       if (c.maxWidth >= 900) {
-        final side = c.maxHeight.clamp(320.0, c.maxWidth * 0.62);
+        final side = (c.maxHeight * BoardView.aspect(_region)).clamp(
+          320.0,
+          c.maxWidth * 0.62,
+        );
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -126,6 +129,14 @@ class _DrillViewState extends State<_DrillView> {
     },
   );
 
+  /// The part of the board the file of the line uses, in all its lines.
+  BoardRegion? get _region {
+    final doc = d.line?.doc.doc;
+    return doc == null || !AppScope.read(context).zoomTraining
+        ? null
+        : josekiRegion(doc.root, doc.size, at: d.session?.current);
+  }
+
   Widget _board() {
     final s = d.session;
     final l = d.line;
@@ -144,6 +155,7 @@ class _DrillViewState extends State<_DrillView> {
     }
     return BoardView(
       style: AppScope.of(context).boardStyle,
+      region: _region,
       board: s.board,
       lastMove: cur.movePoint(size),
       markup: markup,
