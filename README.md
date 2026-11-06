@@ -31,7 +31,7 @@ The same app runs in a browser (phone, tablet, PC), without KataGo.
 
 - Files and progress are kept **in the browser**. On iPhone, add the site to the home screen (Safari > Share > Add to Home Screen) so Safari keeps the data.
 - Library > backup button: **Back up library and progress** downloads one JSON file; **Restore a backup** reads it. This also moves your SGF files and progress between the PC and the web.
-- **Starter files**: the `.sgf` files of `assets/starter/` (the joseki "44 approach") are added to the library of every browser that opens the site (once each), and to every new account at its first sync (PC and web).
+- **Starter files**: the `.sgf` files of `assets/starter/` (the joseki "44 approach") are added once to every library (PC and web, with or without an account), and to every new account at its first sync.
 
 Publishing on GitHub Pages: push to the `main` branch of a GitHub repository, then in the repository Settings > Pages, set Source to **GitHub Actions**. The workflow `.github/workflows/pages.yml` tests, builds and publishes the site at `https://<user>.github.io/<repository>/` after every push.
 

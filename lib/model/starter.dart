@@ -44,12 +44,12 @@ Future<int> addStarterFiles(String dir) async {
   }
 }
 
-/// Adds to the library the SGF files shipped in [kStarterFolder] (web
-/// version only, for a visitor to try it). Each file is added once:
-/// deleting it from the library does not bring it back. Returns the number
-/// added.
+/// Adds to the library the SGF files shipped in [kStarterFolder] (PC and
+/// web, account or not), so there is something to try at once. Each file
+/// is added once: deleting it from the library does not bring it back.
+/// Returns the number added.
 Future<int> importStarterPack(Library lib) async {
-  if (!storage.inBrowser || lib.directory == null) return 0;
+  if (lib.directory == null) return 0;
   try {
     final assets = await _starterAssets();
     if (assets.isEmpty) return 0;
