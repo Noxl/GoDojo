@@ -148,6 +148,9 @@ class _LibraryPageState extends State<LibraryPage> {
                                       key: ValueKey(shown.path),
                                       entry: shown,
                                       onTrain: () => _train(context, shown),
+                                      onDrill: () => AppScope.read(
+                                        context,
+                                      ).drillFile(shown.path),
                                       onEdit: () => _edit(context, shown),
                                     ),
                             ),
@@ -622,6 +625,13 @@ class _LibraryPageState extends State<LibraryPage> {
             icon: const Icon(Icons.school_outlined),
             onPressed: e.error == null ? () => _train(context, e) : null,
           ),
+          IconButton(
+            tooltip: 'Global train this file',
+            icon: const Icon(Icons.all_inclusive),
+            onPressed: e.error == null
+                ? () => AppScope.read(context).drillFile(e.path)
+                : null,
+          ),
           // A phone: a tap on the file edits it.
           if (!narrow)
             IconButton(
@@ -843,10 +853,14 @@ class _Preview extends StatefulWidget {
     super.key,
     required this.entry,
     required this.onTrain,
+    required this.onDrill,
     required this.onEdit,
   });
   final LibraryEntry entry;
   final VoidCallback onTrain;
+
+  /// Opens the global trainer on this file only.
+  final VoidCallback onDrill;
   final VoidCallback onEdit;
 
   @override
@@ -1084,6 +1098,19 @@ class _PreviewState extends State<_Preview> {
                   onPressed: widget.onTrain,
                   icon: const Icon(Icons.school_outlined),
                   label: const Text('Train'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Tooltip(
+                  message:
+                      'Global trainer on this file only: mistakes come back, '
+                      'known lines, reviews',
+                  child: FilledButton.tonalIcon(
+                    onPressed: widget.onDrill,
+                    icon: const Icon(Icons.all_inclusive),
+                    label: const Text('Global train'),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),

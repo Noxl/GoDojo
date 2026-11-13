@@ -20,6 +20,7 @@ Go Dojo is free and open source, made by a Go player for Go players: no ads, no 
   - Opponent moves marked Bad are played sometimes (adjustable rate), so you practise punishing them.
   - Lines are chosen at random, unseen lines first; optional automatic next line and random start point; hints, accuracy, coverage.
 - **Global** tab (also "Train all joseki" in the Library): the side list shows every joseki with the % learned, lines known, lines to fix and new lines; click one to train only it. The global trainer plays every line of every joseki and trick (openings optional), as Black, White or both, at random.
+  - **Global train one file**: the ∞ button of a file (Library, its preview, or the Trainer list) opens the global trainer on that opening, joseki or trick only, with all the features below (openings are added to the training if they were left out). The chip "Only: …" goes back to every file.
   - A line with a mistake (or a hint) comes back a few lines later, until you play it cleanly; "Mistakes to fix" lists the lines missed last time.
   - A line is **known** after 3 clean runs in a row; a file is known when all its lines are. Known lines come back for review after 2, 5, 12, then 30 days.
   - Choice of lines: smart mix (mistakes, new lines and reviews first), only my mistakes, or only lines not known yet.

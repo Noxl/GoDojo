@@ -218,6 +218,11 @@ class _ChooseOpening extends StatelessWidget {
                                 final doc = await loadDocument(context, e.path);
                                 if (doc != null) state.train(doc);
                               },
+                              trailing: IconButton(
+                                tooltip: 'Global train this file',
+                                icon: const Icon(Icons.all_inclusive),
+                                onPressed: () => state.drillFile(e.path),
+                              ),
                             ),
                         ],
                       ),

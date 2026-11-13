@@ -234,12 +234,35 @@ class _DrillViewState extends State<_DrillView> {
           ),
         ],
       ),
-      Text(
-        '${d.lines.length} lines from $files file${files == 1 ? '' : 's'}, '
-        'at random. A missed line comes back until you play it without '
-        'mistake.',
-        style: theme.textTheme.bodySmall,
-      ),
+      if (d.only case final o?) ...[
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: InputChip(
+            avatar: KindIcon(
+              kind: o.kind,
+              color: o.kind.hasStartPosition ? null : o.doc.color,
+              size: 18,
+            ),
+            label: Text('Only: ${o.name}', overflow: TextOverflow.ellipsis),
+            onDeleted: () => d.focusDoc(null),
+            deleteButtonTooltipMessage: 'Train every file',
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${d.lines.where((l) => l.doc == o).length} lines of this '
+          '${o.kind.label.toLowerCase()}, at random. A missed line comes '
+          'back until you play it without mistake.',
+          style: theme.textTheme.bodySmall,
+        ),
+      ] else
+        Text(
+          '${d.lines.length} lines from $files file${files == 1 ? '' : 's'}, '
+          'at random. A missed line comes back until you play it without '
+          'mistake.',
+          style: theme.textTheme.bodySmall,
+        ),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -381,6 +404,9 @@ class _DrillViewState extends State<_DrillView> {
       child: Text(
         d.docs.isEmpty
             ? 'Your library is empty. Create some joseki first.'
+            : d.only != null
+            ? 'No line to train in ${d.only!.name} for the color you play. '
+                  'Add moves for your color in the editor.'
             : d.includedDocs == 0
             ? 'No file selected. Tick the files to train in the list.'
             : 'No line to train in your $kinds. Change the settings, or add '

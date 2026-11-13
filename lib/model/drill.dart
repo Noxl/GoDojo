@@ -548,6 +548,7 @@ class DrillSession extends ChangeNotifier {
     final lines = only == null
         ? this.lines
         : this.lines.where((l) => l.doc == only).toList();
+    if (lines.isEmpty) return null;
     // A missed line comes back after a few other lines.
     for (final k in _retries.keys.toList()) {
       _retries[k] = _retries[k]! - 1;
@@ -739,6 +740,50 @@ class DrillSession extends ChangeNotifier {
   void focusDoc(DrillDoc? doc) {
     only = doc;
     next();
+  }
+
+  /// Trains only the file at [path], with all the features of the global
+  /// trainer: its kind (e.g. openings) and the file itself are added to the
+  /// training if they were left out. [fresh] replaces the file's content
+  /// (edited since it was loaded). Returns false if the file is unknown.
+  bool focusPath(String path, {OpeningDocument? fresh}) {
+    final i = docs.indexWhere((d) => d.path == path);
+    if (i < 0 && fresh == null) return false;
+    if (fresh != null) {
+      if (i < 0) {
+        docs.add(DrillDoc(path, fresh));
+      } else {
+        docs[i] = DrillDoc(path, fresh);
+      }
+      _buildLines();
+    }
+    final doc = docs.firstWhere((d) => d.path == path);
+    var s = settings;
+    if (!s.kinds.contains(doc.kind)) {
+      s = s.copyWith(kinds: {...s.kinds, doc.kind});
+    }
+    final chosen = s.docColors[doc.path];
+    if (chosen != null && chosen.intersection(possibleColors(doc)).isEmpty) {
+      s = s.copyWith(docColors: {...s.docColors}..remove(doc.path));
+    }
+    if (s != settings) {
+      progress.settings = s;
+      unawaited(progress.save());
+      _buildLines();
+    }
+    // No default color left for it (e.g. none chosen): both colors.
+    if (!isIncluded(doc)) {
+      progress.settings = s.copyWith(
+        docColors: {...s.docColors, doc.path: possibleColors(doc)},
+      );
+      unawaited(progress.save());
+      _buildLines();
+    }
+    _abandon();
+    only = doc;
+    notice = null;
+    next();
+    return true;
   }
 
   /// Progress of each file, in name order.

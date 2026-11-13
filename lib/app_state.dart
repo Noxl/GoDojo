@@ -198,6 +198,22 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Opens the global trainer on the file at [path] only (an opening, a
+  /// joseki or a trick), with all its features: mistakes coming back,
+  /// known lines, reviews.
+  Future<void> drillFile(String path) async {
+    if (drill == null) await startDrill();
+    final d = drill;
+    if (d == null) return;
+    // The file may have been edited since the trainer read it.
+    OpeningDocument? fresh;
+    try {
+      fresh = await OpeningDocument.load(path);
+    } catch (_) {}
+    d.focusPath(path, fresh: fresh);
+    goTo(AppSection.drill);
+  }
+
   void stopDrill({bool notify = true}) {
     drill?.dispose();
     drill = null;

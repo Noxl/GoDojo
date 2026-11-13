@@ -231,4 +231,41 @@ void main() {
       await dir.delete(recursive: true);
     } catch (_) {}
   });
+
+  test('global training of one opening (openings left out)', () {
+    const opening =
+        '(;GN[O]SZ[9]OC[B];B[ee](;W[cc];B[gc])(;W[gc];B[cc]))';
+    final p = DrillProgress()..settings = const DrillSettings(autoNext: false);
+    final d = DrillSession(
+      docs: [
+        DrillDoc('a.sgf', OpeningDocument.fromSgf(_a)),
+        DrillDoc('o.sgf', OpeningDocument.fromSgf(opening)),
+      ],
+      progress: p,
+      trainerOptions: _instant,
+      random: Random(3),
+    )..next();
+    // Openings are not trained by default.
+    expect(d.lines.any((l) => l.doc.path == 'o.sgf'), isFalse);
+    expect(d.focusPath('o.sgf'), isTrue);
+    expect(d.settings.kinds, contains(DocumentKind.opening));
+    expect(d.only?.path, 'o.sgf');
+    // Every line chosen is one of the opening, played as its color.
+    for (var i = 0; i < 6; i++) {
+      expect(d.line!.doc.path, 'o.sgf');
+      expect(d.line!.color, Stone.black);
+      i.isEven ? _playWithMistake(d) : _playClean(d);
+      d.next();
+    }
+    expect(d.mistakeLines.every((l) => l.doc.path == 'o.sgf'), isTrue);
+    expect(d.focusPath('missing.sgf'), isFalse);
+  });
+
+  test('a fresh copy of the file replaces the one loaded', () {
+    final d = _drill()..next();
+    const edited = '(;GN[A]GK[joseki]SZ[9]PL[B];B[cc];W[dc];B[cd])';
+    d.focusPath('a.sgf', fresh: OpeningDocument.fromSgf(edited));
+    expect(d.lines.where((l) => l.doc.path == 'a.sgf').length, 2);
+    expect(d.line!.doc.path, 'a.sgf');
+  });
 }
