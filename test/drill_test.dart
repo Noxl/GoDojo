@@ -233,8 +233,7 @@ void main() {
   });
 
   test('global training of one opening (openings left out)', () {
-    const opening =
-        '(;GN[O]SZ[9]OC[B];B[ee](;W[cc];B[gc])(;W[gc];B[cc]))';
+    const opening = '(;GN[O]SZ[9]OC[B];B[ee](;W[cc];B[gc])(;W[gc];B[cc]))';
     final p = DrillProgress()..settings = const DrillSettings(autoNext: false);
     final d = DrillSession(
       docs: [
@@ -267,5 +266,38 @@ void main() {
     d.focusPath('a.sgf', fresh: OpeningDocument.fromSgf(edited));
     expect(d.lines.where((l) => l.doc.path == 'a.sgf').length, 2);
     expect(d.line!.doc.path, 'a.sgf');
+  });
+
+  test('files brought by the sync are trained, the progress is shared', () {
+    var recorded = 0;
+    final p = DrillProgress()..settings = const DrillSettings(autoNext: false);
+    final d = DrillSession(
+      docs: [DrillDoc('a.sgf', OpeningDocument.fromSgf(_a))],
+      progress: p,
+      trainerOptions: _instant,
+      random: Random(2),
+      onRecorded: () => recorded++,
+    )..next();
+    expect(d.lines.length, 4);
+    _playClean(d);
+    expect(recorded, 1);
+    d.reloadDocs([
+      DrillDoc('a.sgf', OpeningDocument.fromSgf(_a)),
+      DrillDoc('b.sgf', OpeningDocument.fromSgf(_b)),
+    ]);
+    expect(d.lines.length, 8);
+    // Progress merged from the cloud counts at once.
+    final other = DrillProgress();
+    for (final l in d.lines.where((l) => l.doc.path == 'b.sgf')) {
+      for (var i = 0; i < kKnownStreak; i++) {
+        other.record(l.key, mistakes: 0, hinted: false);
+      }
+    }
+    var notified = 0;
+    d.addListener(() => notified++);
+    p.merge(other);
+    d.progressChanged();
+    expect(notified, 1);
+    expect(d.knownLines, 4);
   });
 }

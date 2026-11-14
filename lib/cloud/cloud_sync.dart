@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -106,6 +106,14 @@ class CloudSync extends ChangeNotifier {
   User? get user => _client?.auth.currentUser;
   bool get signedIn => user != null;
 
+  /// Called after a sync brought, changed or deleted files here.
+  VoidCallback? onFilesChanged;
+
+  /// Called after a sync merged progress from the cloud.
+  VoidCallback? onProgressChanged;
+
+  AppLifecycleListener? _lifecycle;
+
   /// Starts syncing with [client] (after `Supabase.initialize`).
   void attach(SupabaseClient client) {
     _client = client;
@@ -123,6 +131,33 @@ class CloudSync extends ChangeNotifier {
     library.addListener(_onLibraryChanged);
     // Changes made on the other devices, and the training progress.
     _timer = Timer.periodic(const Duration(seconds: 90), (_) => sync());
+    // Leaving the app (or the browser tab): send what is waiting now.
+    // Coming back: bring what the other devices did meanwhile.
+    _lifecycle = AppLifecycleListener(
+      onHide: _flush,
+      onPause: _flush,
+      onShow: sync,
+      onResume: sync,
+    );
+  }
+
+  /// A line was trained (or the progress reset): sent in a few seconds.
+  void progressChanged() {
+    if (!signedIn) return;
+    if (_running) {
+      _again = true;
+      return;
+    }
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(seconds: 4), sync);
+  }
+
+  /// Syncs now if a sync is waiting.
+  void _flush() {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+      sync();
+    }
   }
 
   /// The sync itself refreshes the library: not a change to send.
@@ -464,6 +499,7 @@ class CloudSync extends ChangeNotifier {
       } finally {
         _selfRefresh = false;
       }
+      onFilesChanged?.call();
     }
   }
 
@@ -494,6 +530,7 @@ class CloudSync extends ChangeNotifier {
         final theirs = DrillProgress()..readJson(jsonEncode(data));
         if (mine.merge(theirs) > 0) {
           await mine.save();
+          onProgressChanged?.call();
           notifyListeners();
         }
         // The cloud already has every line as it is here: nothing to send.
@@ -534,6 +571,7 @@ class CloudSync extends ChangeNotifier {
     _authSub?.cancel();
     _timer?.cancel();
     _debounce?.cancel();
+    _lifecycle?.dispose();
     library.removeListener(_onLibraryChanged);
     super.dispose();
   }

@@ -42,11 +42,39 @@ class AppState extends ChangeNotifier {
   final analysis = AnalysisService();
 
   /// The account and the sync of the library with the cloud.
-  late final cloud = CloudSync(
-    library: library,
-    progress: () async =>
-        drill?.progress ?? await DrillProgress.load(await progressPath()),
-  );
+  late final cloud = CloudSync(library: library, progress: sharedProgress)
+    ..onFilesChanged = _reloadDrillDocs
+    ..onProgressChanged = (() => drill?.progressChanged());
+
+  /// The training progress, loaded once and shared by the global trainer
+  /// and the sync (two copies would overwrite each other).
+  Future<DrillProgress>? _progress;
+
+  /// The sync changed the files while the global trainer was loading.
+  bool _reloadWhenLoaded = false;
+  String? _progressFor;
+
+  Future<DrillProgress> sharedProgress() async {
+    final path = await progressPath();
+    if (_progress == null || _progressFor != path) {
+      _progressFor = path;
+      _progress = DrillProgress.load(path);
+    }
+    return _progress!;
+  }
+
+  /// The sync changed the files: the global trainer trains on them.
+  Future<void> _reloadDrillDocs() async {
+    if (drillLoading) {
+      _reloadWhenLoaded = true;
+      return;
+    }
+    final d = drill;
+    if (d == null) return;
+    final docs = await DrillSession.loadDocs(library.entries);
+    if (drill == d) d.reloadDocs(docs);
+  }
+
   AppSection section = AppSection.library;
   OpeningDocument? editorDoc;
   TrainerTarget? trainerTarget;
@@ -157,21 +185,27 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     try {
       await library.refresh();
-      final progress = await DrillProgress.load(await progressPath());
+      final progress = await sharedProgress();
       final docs = await DrillSession.loadDocs(library.entries);
       stopDrill(notify: false);
-      drill = DrillSession(docs: docs, progress: progress)..next();
+      drill = DrillSession(
+        docs: docs,
+        progress: progress,
+        onRecorded: cloud.progressChanged,
+      )..next();
     } finally {
       drillLoading = false;
       notifyListeners();
+    }
+    if (_reloadWhenLoaded) {
+      _reloadWhenLoaded = false;
+      await _reloadDrillDocs();
     }
   }
 
   /// A backup of the library and the training progress (JSON).
   Future<String> backup() async {
-    final progress =
-        drill?.progress ?? await DrillProgress.load(await progressPath());
-    return buildBackup(library, progress);
+    return buildBackup(library, await sharedProgress());
   }
 
   /// Restores a backup made by [backup]. Returns (files, lines).
@@ -179,8 +213,8 @@ class AppState extends ChangeNotifier {
     // The global trainer saves its progress: start it again afterwards.
     final wasOpen = drill != null;
     stopDrill();
-    final progress = await DrillProgress.load(await progressPath());
-    final r = await restoreBackup(library, progress, text);
+    final r = await restoreBackup(library, await sharedProgress(), text);
+    cloud.progressChanged();
     if (wasOpen) {
       final s = section;
       await startDrill();

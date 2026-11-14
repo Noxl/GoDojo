@@ -357,6 +357,7 @@ class DrillSession extends ChangeNotifier {
     Random? random,
     this.trainerOptions,
     this.autoNextDelay = const Duration(milliseconds: 1800),
+    this.onRecorded,
   }) : _random = random ?? Random() {
     _buildLines();
   }
@@ -368,6 +369,9 @@ class DrillSession extends ChangeNotifier {
   /// Overrides the trainer options (tests).
   final TrainerOptions? trainerOptions;
   final Duration autoNextDelay;
+
+  /// Called when a run is recorded or the progress reset (to sync it).
+  final VoidCallback? onRecorded;
 
   DrillSettings get settings => progress.settings;
 
@@ -731,7 +735,29 @@ class DrillSession extends ChangeNotifier {
       _retries[l.key] = min(lines.length - 1, 2 + _random.nextInt(3));
     }
     unawaited(progress.save());
+    onRecorded?.call();
   }
+
+  /// The files of the library changed (e.g. brought by the sync): trains
+  /// on [fresh] instead. The line being played goes on.
+  void reloadDocs(List<DrillDoc> fresh) {
+    final onlyPath = only?.path;
+    docs
+      ..clear()
+      ..addAll(fresh);
+    only = onlyPath == null
+        ? null
+        : docs.where((d) => d.path == onlyPath).firstOrNull;
+    _buildLines();
+    if (line == null) {
+      next();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  /// The progress changed outside (merged from the cloud): show it.
+  void progressChanged() => notifyListeners();
 
   /// Only the lines of this file are trained (null: all files).
   DrillDoc? only;
@@ -831,6 +857,7 @@ class DrillSession extends ChangeNotifier {
     _retries.clear();
     fixed.clear();
     unawaited(progress.save());
+    onRecorded?.call();
     notifyListeners();
   }
 
